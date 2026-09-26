@@ -233,12 +233,31 @@ job that quietly stops working is visible rather than silent.
 
 ---
 
-## Honest state of this
+## What has actually been tested
 
-The Python tracker is tested and working - it has been run many times against the live sites.
+| Part | State |
+|---|---|
+| Python tracker | run many times against the live sites |
+| `npm install` + `npm run build` | passes - 6 routes and middleware compile |
+| Login / signup pages | render correctly in a browser |
+| Auth gate | `/dashboard` redirects to `/login?next=/dashboard` when signed out |
+| College-domain check | rejects `someone@gmail.com` with the right message |
+| `publish_to_supabase.py` row mapping | checked against `schema.sql` - every column matches, no extras, keys unique |
+| Git repository | initialised and committed, with secrets excluded |
 
-**The website and the SQL have not been run yet.** Node, npm and git are not installed on this
-PC, so there was no way to `npm install`, compile the TypeScript, or execute the schema against
-your database. The Python scripts compile and lint clean; the rest is written carefully but
-unverified. Expect a small fix or two on the first `npm run dev` - send me the error and I will
-correct it.
+**Not yet run: the SQL itself, and anything that needs your real Supabase keys** - registering a
+student, signing in, and the dashboard reading live rows. Those need the schema executed in your
+project and the anon key in `.env.local`. The build placeholder was enough to prove the pages
+compile and render, not that the database round-trip works.
+
+Two bugs were found and fixed by building it:
+
+1. **Browser and server Supabase clients in one file.** Any Client Component importing the
+   browser client also pulled in `next/headers`, and the build failed. They are now three
+   separate modules under `lib/supabase/` - do not merge them back.
+2. **`useSearchParams()` without a Suspense boundary.** Prerendering `/login` failed. The form
+   is now `LoginForm.tsx`, wrapped in `<Suspense>` by `page.tsx`.
+
+Next.js was also moved off 14.2.15, which npm flags as having a security vulnerability, onto
+14.2.35. Staying on 14.x is deliberate: Next 15 made `cookies()` async, which would break
+`lib/supabase/server.ts`.
