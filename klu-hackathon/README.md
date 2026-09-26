@@ -167,6 +167,59 @@ It takes about 4 minutes. Then check `events` in the Supabase table editor.
 
 ---
 
+## Admin access
+
+The admin username is **`RAJASEKHAREMB`**, which resolves to
+`rajasekharemb@kluniversity.in`. The login box accepts either form - anything without an `@`
+gets the college domain appended, so students can type just their roll number too.
+
+Create the account after running the schema:
+
+```bash
+cd klu-hackathon/tracker
+```
+
+```bash
+python create_admin.py
+```
+
+It asks for the password without echoing it, then creates the user and sets
+`profiles.role = 'admin'`. To change the password later, `python create_admin.py --reset-password`.
+
+### About the password
+
+`KL` cannot be used. Supabase Auth enforces a minimum of 6 characters and will reject it
+outright - this is a limit in the service, not a rule the app adds. Supabase's own guidance
+is that "anything less than 8 characters is not recommended".
+
+This script requires **at least 12**, because the admin account can read every student's
+name, roll number, branch and email. An admin login is also the first thing an attacker
+tries, and unlike a student account it is worth brute-forcing. A short password on this
+account puts everyone's data at risk, not just yours.
+
+### What the admin can see
+
+`/admin` shows every registered student, the last ten nightly refreshes with their error
+counts, and a breakdown of events by source. A banner appears if the 2:00 AM job has not
+run for more than 30 hours, so a silently broken cron is visible.
+
+Deleting or exporting accounts is deliberately not in the UI. Do that in the Supabase
+dashboard, where the action is tied to your account.
+
+### How the role is enforced
+
+Three layers, because the first two are only about what gets rendered:
+
+1. `middleware.ts` redirects non-admins away from `/admin`
+2. the page checks the role again server-side
+3. **Row Level Security** in Postgres is the real boundary - `is_admin()` gates the policy
+   that lets one account read another's profile
+
+Roles cannot be self-assigned. The signup trigger always writes `role = 'student'`, because
+user metadata comes straight from the browser and honouring a `role` claim there would let
+anyone register as an admin. A trigger also reverts any attempt to change `role` or `email`
+through the normal update policy. Only the `service_role` key can promote an account.
+
 ## Accounts and passwords
 
 You chose **self-registration**, so each student picks their own password and the shared
@@ -239,8 +292,9 @@ job that quietly stops working is visible rather than silent.
 |---|---|
 | Python tracker | run many times against the live sites |
 | `npm install` + `npm run build` | passes - 6 routes and middleware compile |
-| Login / signup pages | render correctly in a browser |
-| Auth gate | `/dashboard` redirects to `/login?next=/dashboard` when signed out |
+| Login / signup / admin pages | render correctly in a browser |
+| Auth gate | `/dashboard` and `/admin` redirect to `/login?next=...` when signed out |
+| Username login | the box accepts a bare username and appends the college domain |
 | College-domain check | rejects `someone@gmail.com` with the right message |
 | `publish_to_supabase.py` row mapping | checked against `schema.sql` - every column matches, no extras, keys unique |
 | Git repository | initialised and committed, with secrets excluded |
@@ -257,6 +311,11 @@ Two bugs were found and fixed by building it:
    separate modules under `lib/supabase/` - do not merge them back.
 2. **`useSearchParams()` without a Suspense boundary.** Prerendering `/login` failed. The form
    is now `LoginForm.tsx`, wrapped in `<Suspense>` by `page.tsx`.
+3. **A privilege-escalation hole in the first draft of the admin work.** The signup trigger
+   read `role` out of `raw_user_meta_data`, which is supplied by the browser - so any student
+   could have registered as an admin by passing `data: { role: 'admin' }` to `signUp()`. The
+   trigger now hardcodes `'student'`, and a second trigger reverts role changes made through
+   the normal update policy.
 
 Next.js was also moved off 14.2.15, which npm flags as having a security vulnerability, onto
 14.2.35. Staying on 14.x is deliberate: Next 15 made `cookies()` async, which would break

@@ -100,5 +100,14 @@ h1 { font-size: clamp(1.6rem, 4vw, 2.4rem); margin: .1em 0 .25em; letter-spacing
 .altline a { color: var(--orange); font-weight: 700; }
 .hint { font-size: .78rem; color: var(--muted); margin-top: -8px; margin-bottom: 14px; }
 
+/* ------------------------------------------------------------ admin tables */
+.tablewrap { overflow-x: auto; background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
+.table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+.table th, .table td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.table th { background: #f2f4f7; font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.table tr:last-child td { border-bottom: 0; }
+.table tbody tr:hover { background: #fafbfc; }
+.adminlink { color: var(--orange) !important; font-weight: 700; }
+
 footer { max-width: 1320px; margin: 30px auto 0; padding: 26px 22px 50px; color: var(--muted); font-size: .85rem; border-top: 1px solid var(--line); }
 @media (max-width: 560px) { .grid { grid-template-columns: 1fr; } }

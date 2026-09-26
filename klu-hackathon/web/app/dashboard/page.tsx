@@ -22,7 +22,7 @@ export default async function DashboardPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, roll_no")
+    .select("full_name, roll_no, role")
     .eq("id", user.user?.id ?? "")
     .maybeSingle();
 
@@ -41,6 +41,11 @@ export default async function DashboardPage() {
           <nav className="navlinks">
             <a href="#hackathons">Hackathons</a>
             <a href="#hiring">Hiring challenges</a>
+            {profile?.role === "admin" && (
+              <a className="adminlink" href="/admin">
+                Admin
+              </a>
+            )}
             <span className="who">{profile?.full_name || profile?.roll_no || user.user?.email}</span>
             <a href="/change-password">Change password</a>
             <SignOutButton />

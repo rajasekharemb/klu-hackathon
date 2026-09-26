@@ -18,10 +18,18 @@ create table if not exists public.profiles (
     full_name            text,
     branch               text,
     year                 int check (year between 1 and 5),
+    role                 text not null default 'student' check (role in ('student', 'admin')),
     must_change_password boolean not null default false,
     created_at           timestamptz not null default now(),
     updated_at           timestamptz not null default now()
 );
+
+-- Safe to re-run on a database created before roles existed.
+alter table public.profiles add column if not exists role text not null default 'student';
+do $$ begin
+    alter table public.profiles add constraint profiles_role_check check (role in ('student', 'admin'));
+exception when duplicate_object then null;
+end $$;
 
 comment on column public.profiles.must_change_password is
     'True for accounts created by the bulk script with the shared default password. '
@@ -54,12 +62,16 @@ begin
         raise exception 'Only college email addresses may register (got %)', new.email;
     end if;
 
-    insert into public.profiles (id, email, roll_no, full_name, must_change_password)
+    insert into public.profiles (id, email, roll_no, full_name, role, must_change_password)
     values (
         new.id,
         new.email,
         coalesce(new.raw_user_meta_data ->> 'roll_no', split_part(new.email, '@', 1)),
         new.raw_user_meta_data ->> 'full_name',
+        -- ALWAYS 'student'. raw_user_meta_data comes straight from the browser's signUp()
+        -- call, so honouring a 'role' claim here would let anyone register as an admin.
+        -- Admins are promoted afterwards with the service_role key - see create_admin.py.
+        'student',
         coalesce((new.raw_user_meta_data ->> 'must_change_password')::boolean, false)
     )
     on conflict (id) do nothing;
@@ -139,24 +151,69 @@ create table if not exists public.refresh_runs (
 );
 
 
+-- ------------------------------------------------------- 6b. admin plumbing
+-- SECURITY DEFINER so it can read profiles without tripping the RLS policy that
+-- is itself defined in terms of this function.
+create or replace function public.is_admin()
+returns boolean
+language sql
+security definer
+stable
+set search_path = public
+as $$
+    select exists (
+        select 1 from public.profiles
+         where id = auth.uid() and role = 'admin'
+    );
+$$;
+
+-- "update own profile" would otherwise let a student set their own role to 'admin'.
+-- Anything other than the service_role key gets the old values put back.
+create or replace function public.protect_privileged_columns()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+    if coalesce(auth.role(), '') is distinct from 'service_role' then
+        new.role := old.role;
+        new.email := old.email;
+    end if;
+    return new;
+end;
+$$;
+
+drop trigger if exists profiles_protect on public.profiles;
+create trigger profiles_protect before update on public.profiles
+    for each row execute function public.protect_privileged_columns();
+
+
 -- ---------------------------------------------------------------- 7. RLS
 alter table public.profiles      enable row level security;
 alter table public.events        enable row level security;
 alter table public.saved_events  enable row level security;
 alter table public.refresh_runs  enable row level security;
 
--- profiles: a student sees and edits only their own row.
-drop policy if exists "read own profile"   on public.profiles;
-drop policy if exists "update own profile" on public.profiles;
+-- profiles: a student sees and edits only their own row; an admin sees everyone.
+drop policy if exists "read own profile"     on public.profiles;
+drop policy if exists "update own profile"   on public.profiles;
+drop policy if exists "admins read profiles" on public.profiles;
 create policy "read own profile"   on public.profiles for select using (auth.uid() = id);
 create policy "update own profile" on public.profiles for update using (auth.uid() = id)
                                                               with check (auth.uid() = id);
+create policy "admins read profiles" on public.profiles for select
+    to authenticated using (public.is_admin());
 
 -- events: every signed-in student may read. Nobody may write through the API;
 -- the nightly job uses the service_role key, which bypasses RLS by design.
 drop policy if exists "signed-in students read events" on public.events;
+drop policy if exists "admins manage events"           on public.events;
 create policy "signed-in students read events" on public.events
     for select to authenticated using (true);
+-- Admins can correct or remove a bad row from the admin screen without the service key.
+create policy "admins manage events" on public.events
+    for all to authenticated using (public.is_admin()) with check (public.is_admin());
 
 -- saved events: only your own.
 drop policy if exists "own saved events" on public.saved_events;

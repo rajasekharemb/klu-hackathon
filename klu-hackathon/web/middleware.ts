@@ -31,18 +31,28 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Accounts created by the bulk script start on the shared password. They may not
-  // browse anywhere until they have set one of their own.
-  if (pathname !== "/change-password") {
+  const needsProfile = pathname !== "/change-password" || pathname.startsWith("/admin");
+  if (needsProfile) {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("must_change_password")
+      .select("must_change_password, role")
       .eq("id", user.id)
       .maybeSingle();
 
-    if (profile?.must_change_password) {
+    // Accounts created with the shared password may not browse anywhere until they
+    // have set one of their own.
+    if (profile?.must_change_password && pathname !== "/change-password") {
       const url = request.nextUrl.clone();
       url.pathname = "/change-password";
+      url.search = "";
+      return NextResponse.redirect(url);
+    }
+
+    // The admin area is checked here AND by RLS in the database. Middleware alone is
+    // not a security boundary - it only decides what to render.
+    if (pathname.startsWith("/admin") && profile?.role !== "admin") {
+      const url = request.nextUrl.clone();
+      url.pathname = "/dashboard";
       url.search = "";
       return NextResponse.redirect(url);
     }
