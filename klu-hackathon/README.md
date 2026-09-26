@@ -18,9 +18,13 @@ klu-hackathon/
 ├── supabase/schema.sql                  run this once in the SQL editor
 ├── web/                                 the Next.js site -> Vercel
 ├── tracker/publish_to_supabase.py       pushes a scan into the database
-├── tracker/bulk_create_students.py      optional: pre-create accounts
-└── .github/workflows/daily-refresh.yml  the 2:00 AM job
+└── tracker/bulk_create_students.py      optional: pre-create accounts
 ```
+
+The 2:00 AM job lives at **`.github/workflows/daily-refresh.yml` in the repository root**, one
+level above this folder. GitHub only reads workflows from the root `.github/workflows/`
+directory - a copy inside a subfolder is ignored silently, and the Actions tab just shows
+"Get started with GitHub Actions" as though no workflow existed.
 
 ---
 
@@ -145,7 +149,9 @@ secret**. Add two:
 | `SUPABASE_URL` | `https://cxkinufcaefbdmszghtt.supabase.co` |
 | `SUPABASE_SERVICE_KEY` | the **service_role** key |
 
-The workflow is already at `.github/workflows/daily-refresh.yml`.
+The workflow is at `.github/workflows/daily-refresh.yml` in the **repository root**, not inside
+`klu-hackathon/`. Its paths (`HackathonTracker/...`, `klu-hackathon/tracker`) are all relative
+to that root.
 
 **About the schedule.** GitHub cron is UTC only. IST is UTC+5:30, so 2:00 AM IST is
 **20:30 UTC the previous day** - which is why the file says `30 20 * * *`. Changing it to
