@@ -1,5 +1,5 @@
 ﻿import { serverClient } from "@/lib/supabase/server";
-import EventBoard, { type EventRow } from "@/components/EventBoard";
+import EventBoard, { type EventRow, type Registration } from "@/components/EventBoard";
 import SignOutButton from "@/components/SignOutButton";
 
 export const dynamic = "force-dynamic"; // always show the latest nightly refresh
@@ -25,6 +25,12 @@ export default async function DashboardPage() {
     .select("full_name, roll_no, role")
     .eq("id", user.user?.id ?? "")
     .maybeSingle();
+
+  // RLS restricts this to the signed-in student's own rows.
+  const { data: registrationRows } = await supabase
+    .from("event_registrations")
+    .select("event_id, confirmed");
+  const registrations = (registrationRows ?? []) as Registration[];
 
   const hackathons = events.filter((e) => e.kind !== "hiring");
   const hiring = events.filter((e) => e.kind === "hiring");
@@ -76,7 +82,7 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      <EventBoard events={events} />
+      <EventBoard events={events} registrations={registrations} />
 
       <footer>
         {lastRun

@@ -1,6 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import RegisterButton from "./RegisterButton";
+
+export type Registration = { event_id: number; confirmed: boolean };
 
 export type EventRow = {
   id: number;
@@ -61,7 +64,7 @@ function registrationState(event: EventRow): [string, string] {
   return ["UPCOMING", "open"];
 }
 
-function EventCard({ event }: { event: EventRow }) {
+function EventCard({ event, registration }: { event: EventRow; registration?: Registration }) {
   const [state, stateClass] = registrationState(event);
   const isNew = event.tracker_status === "NEW";
   const hasPoster =
@@ -136,21 +139,29 @@ function EventCard({ event }: { event: EventRow }) {
           <a className="btn ghost" href={event.url ?? "#"} target="_blank" rel="noopener noreferrer">
             Event page
           </a>
-          <a
-            className="btn primary"
+          <RegisterButton
+            eventId={event.id}
             href={event.registration_url || event.url || "#"}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Register Now
-          </a>
+            initiallyRegistered={Boolean(registration)}
+            initiallyConfirmed={Boolean(registration?.confirmed)}
+          />
         </div>
       </div>
     </article>
   );
 }
 
-function Band({ title, blurb, events }: { title: string; blurb: string; events: EventRow[] }) {
+function Band({
+  title,
+  blurb,
+  events,
+  registrations,
+}: {
+  title: string;
+  blurb: string;
+  events: EventRow[];
+  registrations: Map<number, Registration>;
+}) {
   if (!events.length) return null;
   return (
     <section className="band">
@@ -164,7 +175,7 @@ function Band({ title, blurb, events }: { title: string; blurb: string; events: 
       </p>
       <div className="grid">
         {events.map((event) => (
-          <EventCard event={event} key={event.id} />
+          <EventCard event={event} registration={registrations.get(event.id)} key={event.id} />
         ))}
       </div>
     </section>
@@ -177,12 +188,14 @@ function Group({
   note,
   tone,
   events,
+  registrations,
 }: {
   anchor: string;
   heading: string;
   note: string;
   tone: string;
   events: EventRow[];
+  registrations: Map<number, Registration>;
 }) {
   if (!events.length) return null;
   const fresh = events.filter((e) => e.tracker_status === "NEW");
@@ -195,22 +208,37 @@ function Group({
         </h2>
         <p>{note}</p>
       </div>
-      <Band title="New" blurb="Found for the first time in the latest refresh." events={fresh} />
-      <Band title="Previously seen" blurb="Recorded earlier and still open." events={seen} />
+      <Band title="New" blurb="Found for the first time in the latest refresh."
+            events={fresh} registrations={registrations} />
+      <Band title="Previously seen" blurb="Recorded earlier and still open."
+            events={seen} registrations={registrations} />
     </div>
   );
 }
 
-export default function EventBoard({ events }: { events: EventRow[] }) {
+export default function EventBoard({
+  events,
+  registrations = [],
+}: {
+  events: EventRow[];
+  registrations?: Registration[];
+}) {
   const [term, setTerm] = useState("");
   const [kind, setKind] = useState<"all" | "open" | "hiring">("all");
   const [status, setStatus] = useState<"all" | "NEW" | "OLD">("all");
+  const [mine, setMine] = useState(false);
+
+  const registrationMap = useMemo(
+    () => new Map(registrations.map((r) => [r.event_id, r])),
+    [registrations],
+  );
 
   const visible = useMemo(() => {
     const needle = term.trim().toLowerCase();
     return events.filter((event) => {
       if (kind !== "all" && (kind === "hiring") !== (event.kind === "hiring")) return false;
       if (status !== "all" && (event.tracker_status ?? "OLD") !== status) return false;
+      if (mine && !registrationMap.has(event.id)) return false;
       if (!needle) return true;
       const haystack = [
         event.title,
@@ -224,7 +252,7 @@ export default function EventBoard({ events }: { events: EventRow[] }) {
         .toLowerCase();
       return haystack.includes(needle);
     });
-  }, [events, term, kind, status]);
+  }, [events, term, kind, status, mine, registrationMap]);
 
   const hackathons = visible.filter((e) => e.kind !== "hiring");
   const hiring = visible.filter((e) => e.kind === "hiring");
@@ -262,6 +290,13 @@ export default function EventBoard({ events }: { events: EventRow[] }) {
             </button>
           ))}
         </span>
+        <button
+          className={`chipbtn ${mine ? "on" : ""}`}
+          onClick={() => setMine(!mine)}
+          type="button"
+        >
+          My registrations{registrations.length ? ` (${registrations.length})` : ""}
+        </button>
       </div>
 
       <Group
@@ -270,6 +305,7 @@ export default function EventBoard({ events }: { events: EventRow[] }) {
         note="Open contests you enter to build something and win a prize."
         tone="tone-open"
         events={hackathons}
+        registrations={registrationMap}
       />
       <Group
         anchor="hiring"
@@ -277,6 +313,7 @@ export default function EventBoard({ events }: { events: EventRow[] }) {
         note="Run by companies to recruit. You compete for a job, often against working professionals - check the experience requirements first."
         tone="tone-hiring"
         events={hiring}
+        registrations={registrationMap}
       />
 
       {!visible.length && <p className="empty">Nothing matches that search.</p>}

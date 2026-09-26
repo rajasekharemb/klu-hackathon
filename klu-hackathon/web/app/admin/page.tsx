@@ -16,6 +16,25 @@ type Profile = {
   created_at: string;
 };
 
+type Registration = {
+  id: number;
+  student_name: string | null;
+  roll_no: string | null;
+  student_email: string;
+  branch: string | null;
+  year: number | null;
+  event_title: string;
+  source: string | null;
+  kind: string;
+  start_date: string | null;
+  deadline: string | null;
+  event_url: string | null;
+  first_clicked_at: string;
+  last_clicked_at: string;
+  times_clicked: number;
+  confirmed: boolean;
+};
+
 type Run = {
   id: number;
   ran_at: string;
@@ -39,15 +58,21 @@ export default async function AdminPage() {
   const { data: me } = await supabase.from("profiles").select("role, full_name").eq("id", user.id).maybeSingle();
   if (me?.role !== "admin") redirect("/dashboard");
 
-  const [studentsResult, runsResult, eventsResult] = await Promise.all([
+  const [studentsResult, runsResult, eventsResult, regsResult] = await Promise.all([
     supabase.from("profiles").select("*").order("created_at", { ascending: false }).limit(500),
     supabase.from("refresh_runs").select("*").order("ran_at", { ascending: false }).limit(10),
     supabase.from("events").select("kind, tracker_status, poster_status, source"),
+    supabase
+      .from("registration_report")
+      .select("*")
+      .order("last_clicked_at", { ascending: false })
+      .limit(500),
   ]);
 
   const students = (studentsResult.data ?? []) as Profile[];
   const runs = (runsResult.data ?? []) as Run[];
   const events = eventsResult.data ?? [];
+  const registrations = (regsResult.data ?? []) as Registration[];
 
   const bySource = events.reduce<Record<string, number>>((acc, event) => {
     const key = (event.source as string) || "unknown";
@@ -83,6 +108,8 @@ export default async function AdminPage() {
           <div className="stat"><b>{events.length}</b><span>Events</span></div>
           <div className="stat"><b>{events.filter((e) => e.kind === "hiring").length}</b><span>Hiring</span></div>
           <div className="stat"><b>{events.filter((e) => e.tracker_status === "NEW").length}</b><span>New</span></div>
+          <div className="stat"><b>{registrations.length}</b><span>Registrations</span></div>
+          <div className="stat"><b>{registrations.filter((r) => r.confirmed).length}</b><span>Confirmed</span></div>
         </div>
 
         {staleHours > 30 && (
@@ -92,6 +119,61 @@ export default async function AdminPage() {
             stopped - check the Actions tab in GitHub.
           </div>
         )}
+      </div>
+
+      <div className="band">
+        <div className="bandhead">
+          <h3>
+            Who registered for what <span className="count">{registrations.length}</span>
+          </h3>
+        </div>
+        <p className="sub" style={{ fontSize: ".85rem", marginTop: -6, marginBottom: 12 }}>
+          Recorded when a student clicks <b>Register Now</b>. That opens the event&apos;s own site,
+          so it shows the student went to register - <b>Confirmed</b> is set only when the student
+          ticks &quot;I registered&quot; afterwards.
+        </p>
+        <div className="tablewrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Student</th><th>Roll no</th><th>Branch</th><th>Event</th>
+                <th>Type</th><th>Clicked</th><th>Times</th><th>Confirmed</th>
+              </tr>
+            </thead>
+            <tbody>
+              {registrations.map((row) => (
+                <tr key={row.id}>
+                  <td>{row.student_name || "-"}<div className="venue">{row.student_email}</div></td>
+                  <td>{row.roll_no || "-"}</td>
+                  <td>{row.branch || "-"}{row.year ? ` / Y${row.year}` : ""}</td>
+                  <td>
+                    {row.event_url ? (
+                      <a href={row.event_url} target="_blank" rel="noopener noreferrer">{row.event_title}</a>
+                    ) : (
+                      row.event_title
+                    )}
+                    <div className="venue">{row.source}</div>
+                  </td>
+                  <td>
+                    <span className={`state ${row.kind === "hiring" ? "open" : "tba"}`}>
+                      {row.kind === "hiring" ? "hiring" : "hackathon"}
+                    </span>
+                  </td>
+                  <td>{new Date(row.last_clicked_at).toLocaleString("en-IN")}</td>
+                  <td>{row.times_clicked}</td>
+                  <td>
+                    <span className={`state ${row.confirmed ? "live" : "closed"}`}>
+                      {row.confirmed ? "YES" : "not yet"}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+              {!registrations.length && (
+                <tr><td colSpan={8}>No student has clicked Register Now yet.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div className="band">
