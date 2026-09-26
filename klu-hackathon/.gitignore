@@ -1,0 +1,22 @@
+# secrets - never commit these
+.env
+.env.local
+.env*.local
+*.key
+students.csv
+
+# node / next
+node_modules/
+.next/
+out/
+.vercel/
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+
+# tracker output (regenerated nightly)
+output/
+tracker_state.json
+tracker.log

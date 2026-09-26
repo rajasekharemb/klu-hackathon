@@ -1,0 +1,34 @@
+﻿# unrelated folders in this drive
+EXP_25_H753ZI_Communication Between Two STM32_board_2/
+Hackathon-1/
+HackthonReader/
+.claude/
+
+# secrets
+.env
+.env.local
+*.key
+students.csv
+
+# node / next
+node_modules/
+.next/
+.vercel/
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+.ruff_cache/
+.pytest_cache/
+
+# regenerated nightly
+output/
+tracker_state.json
+tracker.log
+
+# account recovery codes and IDE config - never commit
+recovery-code*.txt
+*recovery*code*
+.idea/
+

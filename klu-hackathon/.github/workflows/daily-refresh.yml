@@ -1,0 +1,72 @@
+name: Daily hackathon refresh
+
+# 02:00 IST every day. GitHub cron is UTC only, and IST is UTC+5:30,
+# so 02:00 IST is 20:30 UTC on the PREVIOUS day. Do not "fix" this to 2 0 * * *.
+on:
+  schedule:
+    - cron: "30 20 * * *"
+  workflow_dispatch: {}          # lets you run it by hand from the Actions tab
+
+concurrency:
+  group: daily-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r HackathonTracker/requirements.txt
+          pip install requests
+
+      # The tracker's NEW/OLD memory lives in tracker_state.json. Restoring it from
+      # cache is what makes "NEW" mean "new since yesterday" instead of "new every night".
+      - name: Restore tracker memory
+        uses: actions/cache/restore@v4
+        with:
+          path: HackathonTracker/tracker_state.json
+          key: tracker-state-${{ github.run_id }}
+          restore-keys: tracker-state-
+
+      - name: Run the tracker
+        working-directory: HackathonTracker
+        run: python hackathon_tracker.py --days 120
+
+      - name: Publish to Supabase
+        working-directory: klu-hackathon/tracker
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python publish_to_supabase.py ../../HackathonTracker/output/hackathons.json
+
+      - name: Save tracker memory for tomorrow
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: HackathonTracker/tracker_state.json
+          key: tracker-state-${{ github.run_id }}
+
+      - name: Keep the run's output as an artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tracker-output-${{ github.run_number }}
+          path: |
+            HackathonTracker/output/hackathons_latest.xlsx
+            HackathonTracker/output/report.html
+            HackathonTracker/output/hackathons.json
+            HackathonTracker/tracker.log
+          retention-days: 14
