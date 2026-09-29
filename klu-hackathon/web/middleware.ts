@@ -6,6 +6,7 @@
  */
 import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
+import { canSeeAdminArea } from "@/lib/roles";
 
 const PUBLIC_PATHS = ["/login", "/signup", "/auth", "/_next", "/favicon.ico"];
 
@@ -50,7 +51,7 @@ export async function middleware(request: NextRequest) {
 
     // The admin area is checked here AND by RLS in the database. Middleware alone is
     // not a security boundary - it only decides what to render.
-    if (pathname.startsWith("/admin") && profile?.role !== "admin") {
+    if (pathname.startsWith("/admin") && !canSeeAdminArea(profile?.role)) {
       const url = request.nextUrl.clone();
       url.pathname = "/dashboard";
       url.search = "";

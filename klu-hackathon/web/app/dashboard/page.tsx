@@ -1,4 +1,5 @@
 ﻿import { serverClient } from "@/lib/supabase/server";
+import { canSeeAdminArea } from "@/lib/roles";
 import EventBoard, { type EventRow, type Registration } from "@/components/EventBoard";
 import SignOutButton from "@/components/SignOutButton";
 
@@ -47,7 +48,7 @@ export default async function DashboardPage() {
           <nav className="navlinks">
             <a href="#hackathons">Hackathons</a>
             <a href="#hiring">Hiring challenges</a>
-            {(profile?.role === "admin" || profile?.role === "owner") && (
+            {canSeeAdminArea(profile?.role) && (
               <a className="adminlink" href="/admin">
                 Admin
               </a>

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { serverClient } from "@/lib/supabase/server";
+import { canManage, canSeeAdminArea } from "@/lib/roles";
 import SignOutButton from "@/components/SignOutButton";
 import AdminStudents, { type Profile } from "@/components/AdminStudents";
 import AdminRegistrations, { type Registration } from "@/components/AdminRegistrations";
@@ -28,11 +29,11 @@ export default async function AdminPage() {
   // Middleware already gated this, but the page checks again: a redirect is a UI
   // decision, not a security boundary. RLS is what actually protects the rows.
   const { data: me } = await supabase.from("profiles").select("role, full_name").eq("id", user.id).maybeSingle();
-  if (me?.role !== "admin" && me?.role !== "owner") redirect("/dashboard");
+  if (!canSeeAdminArea(me?.role)) redirect("/dashboard");
 
   // Only the owner manages accounts. The page hides that section, and the database
   // functions refuse it too - hiding a button is not a permission.
-  const isOwner = me?.role === "owner";
+  const isOwner = canManage(me?.role);
 
   const [studentsResult, runsResult, eventsResult, regsResult] = await Promise.all([
     isOwner
