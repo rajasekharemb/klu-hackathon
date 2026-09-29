@@ -175,3 +175,9 @@ footer { max-width: 1320px; margin: 30px auto 0; padding: 26px 22px 50px; color:
 .errortext { color: #a32b1c; }
 .linkcell { max-width: 320px; overflow-wrap: anywhere; }
 .linkcell .adminsearch { margin-bottom: 0; min-width: 240px; }
+
+/* -------------------------------------------------------------- save button */
+.btn.savebtn { flex-basis: 100%; margin-top: 2px; background: var(--card); color: var(--muted);
+  border: 1px dashed var(--line); font-size: .8rem; }
+.btn.savebtn:hover:not(:disabled) { color: var(--dark); border-color: var(--dark); }
+.btn.savebtn.on { background: #eef2fb; color: #42618f; border-style: solid; border-color: #b9c9e6; }

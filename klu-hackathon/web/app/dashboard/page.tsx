@@ -1,6 +1,6 @@
 ﻿import { serverClient } from "@/lib/supabase/server";
 import { canSeeAdminArea } from "@/lib/roles";
-import EventBoard, { type EventRow, type Registration } from "@/components/EventBoard";
+import EventBoard, { type EventRow, type Registration, type Saved } from "@/components/EventBoard";
 import { PAGE_SIZE } from "@/lib/config";
 import SignOutButton from "@/components/SignOutButton";
 
@@ -38,6 +38,14 @@ export default async function DashboardPage() {
     .from("event_registrations")
     .select("event_id, confirmed");
   const registrations = (registrationRows ?? []) as Registration[];
+
+  // Only entries still within their 30 days. An expired save vanishes the moment
+  // it lapses, whether or not the purge has run yet.
+  const { data: savedRows } = await supabase
+    .from("saved_events")
+    .select("event_id, expires_at")
+    .gt("expires_at", new Date().toISOString());
+  const savedEvents = (savedRows ?? []) as Saved[];
 
   // Counted across every open event, not just the page that was sent.
   const [hiringCount, freshCount] = await Promise.all([
@@ -96,6 +104,7 @@ export default async function DashboardPage() {
         initialEvents={events}
         total={totalEvents}
         registrations={registrations}
+        savedEvents={savedEvents}
         canRecommend={canSeeAdminArea(profile?.role)}
       />
 

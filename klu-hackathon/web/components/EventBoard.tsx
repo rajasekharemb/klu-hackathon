@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import RegisterButton from "./RegisterButton";
 import RecommendButton from "./RecommendButton";
+import SaveButton from "./SaveButton";
 import { browserClient } from "@/lib/supabase/client";
 import { PAGE_SIZE } from "@/lib/config";
 
 export type Registration = { event_id: number; confirmed: boolean };
+export type Saved = { event_id: number; expires_at: string };
 
 export type EventRow = {
   id: number;
@@ -73,10 +75,12 @@ function registrationState(event: EventRow): [string, string] {
 function EventCard({
   event,
   registration,
+  saved,
   canRecommend,
 }: {
   event: EventRow;
   registration?: Registration;
+  saved?: Saved;
   canRecommend: boolean;
 }) {
   const [state, stateClass] = registrationState(event);
@@ -165,6 +169,11 @@ function EventCard({
             initiallyRegistered={Boolean(registration)}
             initiallyConfirmed={Boolean(registration?.confirmed)}
           />
+          <SaveButton
+            eventId={event.id}
+            initiallySaved={Boolean(saved)}
+            expiresAt={saved?.expires_at}
+          />
           {canRecommend && <RecommendButton eventId={event.id} initial={recommended} />}
         </div>
       </div>
@@ -177,12 +186,14 @@ function Band({
   blurb,
   events,
   registrations,
+  savedMap,
   canRecommend,
 }: {
   title: string;
   blurb: string;
   events: EventRow[];
   registrations: Map<number, Registration>;
+  savedMap: Map<number, Saved>;
   canRecommend: boolean;
 }) {
   if (!events.length) return null;
@@ -196,7 +207,13 @@ function Band({
       <p className="sub tablenote">{blurb}</p>
       <div className="grid">
         {events.map((event) => (
-          <EventCard event={event} registration={registrations.get(event.id)} canRecommend={canRecommend} key={event.id} />
+          <EventCard
+            event={event}
+            registration={registrations.get(event.id)}
+            saved={savedMap.get(event.id)}
+            canRecommend={canRecommend}
+            key={event.id}
+          />
         ))}
       </div>
     </section>
@@ -210,6 +227,7 @@ function Group({
   tone,
   events,
   registrations,
+  savedMap,
   canRecommend,
 }: {
   anchor: string;
@@ -218,6 +236,7 @@ function Group({
   tone: string;
   events: EventRow[];
   registrations: Map<number, Registration>;
+  savedMap: Map<number, Saved>;
   canRecommend: boolean;
 }) {
   if (!events.length) return null;
@@ -236,6 +255,7 @@ function Group({
         blurb="Found for the first time in the latest refresh."
         events={fresh}
         registrations={registrations}
+        savedMap={savedMap}
         canRecommend={canRecommend}
       />
       <Band
@@ -243,6 +263,7 @@ function Group({
         blurb="Recorded earlier and still open."
         events={seen}
         registrations={registrations}
+        savedMap={savedMap}
         canRecommend={canRecommend}
       />
     </div>
@@ -258,18 +279,20 @@ export default function EventBoard({
   initialEvents,
   total,
   registrations = [],
+  savedEvents = [],
   canRecommend = false,
 }: {
   initialEvents: EventRow[];
   total: number;
   registrations?: Registration[];
+  savedEvents?: Saved[];
   canRecommend?: boolean;
 }) {
   const [events, setEvents] = useState<EventRow[]>(initialEvents);
   const [term, setTerm] = useState("");
   const [kind, setKind] = useState<"all" | "open" | "hiring">("all");
   const [status, setStatus] = useState<"all" | "NEW" | "OLD">("all");
-  const [onlyMine, setOnlyMine] = useState(false);
+  const [scope, setScope] = useState<"all" | "mine" | "saved">("all");
   const [loading, setLoading] = useState(false);
   const [exhausted, setExhausted] = useState(initialEvents.length >= total);
   const [error, setError] = useState("");
@@ -279,6 +302,16 @@ export default function EventBoard({
     () => new Map(registrations.map((r) => [r.event_id, r])),
     [registrations],
   );
+  const savedMap = useMemo(() => new Map(savedEvents.map((s) => [s.event_id, s])), [savedEvents]);
+
+  // "My registrations" and "Saved" used to filter whatever happened to be loaded,
+  // so an event on page three simply did not appear. The ids go to the query
+  // instead, which returns the right set however far down the list they sit.
+  const scopeIds = useMemo(() => {
+    if (scope === "mine") return registrations.map((r) => r.event_id);
+    if (scope === "saved") return savedEvents.map((s) => s.event_id);
+    return null;
+  }, [scope, registrations, savedEvents]);
 
   /**
    * Filtering and searching run on the server, not over an array in the browser.
@@ -304,6 +337,7 @@ export default function EventBoard({
 
       if (kind !== "all") query = query.eq("kind", kind);
       if (status !== "all") query = query.eq("tracker_status", status);
+      if (scopeIds) query = query.in("id", scopeIds.length ? scopeIds : [-1]);
 
       const needle = term.trim();
       if (needle) {
@@ -329,7 +363,7 @@ export default function EventBoard({
       setExhausted(rows.length < size);
       setLoading(false);
     },
-    [kind, status, term],
+    [kind, status, term, scopeIds],
   );
 
   // Re-query when a filter or the search text changes. The first render is skipped,
@@ -347,7 +381,7 @@ export default function EventBoard({
     return () => clearTimeout(timer);
   }, [fetchPage, initialEvents.length, total]);
 
-  const shown = onlyMine ? events.filter((e) => registrationMap.has(e.id)) : events;
+  const shown = events;
   const hackathons = shown.filter((e) => e.kind !== "hiring");
   const hiring = shown.filter((e) => e.kind === "hiring");
 
@@ -384,13 +418,22 @@ export default function EventBoard({
             </button>
           ))}
         </span>
-        <button
-          className={`chipbtn ${onlyMine ? "on" : ""}`}
-          onClick={() => setOnlyMine(!onlyMine)}
-          type="button"
-        >
-          My registrations{registrations.length ? ` (${registrations.length})` : ""}
-        </button>
+        <span className="group">
+          <button
+            className={`chipbtn ${scope === "mine" ? "on" : ""}`}
+            onClick={() => setScope(scope === "mine" ? "all" : "mine")}
+            type="button"
+          >
+            My registrations{registrations.length ? ` (${registrations.length})` : ""}
+          </button>
+          <button
+            className={`chipbtn ${scope === "saved" ? "on" : ""}`}
+            onClick={() => setScope(scope === "saved" ? "all" : "saved")}
+            type="button"
+          >
+            Saved for later{savedEvents.length ? ` (${savedEvents.length})` : ""}
+          </button>
+        </span>
       </div>
 
       {error && (
@@ -406,6 +449,7 @@ export default function EventBoard({
         tone="tone-open"
         events={hackathons}
         registrations={registrationMap}
+        savedMap={savedMap}
         canRecommend={canRecommend}
       />
       <Group
@@ -415,21 +459,24 @@ export default function EventBoard({
         tone="tone-hiring"
         events={hiring}
         registrations={registrationMap}
+        savedMap={savedMap}
         canRecommend={canRecommend}
       />
 
       {!shown.length && !loading && (
         <p className="empty">
-          {onlyMine
+          {scope === "mine"
             ? "You have not registered for anything yet."
-            : term.trim() || kind !== "all" || status !== "all"
-              ? "Nothing matches that search."
-              : "No events are open for registration right now."}
+            : scope === "saved"
+              ? "Nothing saved yet - press “Save for later” on a card to keep it here for 30 days."
+              : term.trim() || kind !== "all" || status !== "all"
+                ? "Nothing matches that search."
+                : "No events are open for registration right now."}
         </p>
       )}
 
       <div className="morewrap">
-        {!exhausted && !onlyMine && (
+        {!exhausted && scope === "all" && (
           <button
             className="btn primary showmore"
             type="button"

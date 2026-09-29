@@ -131,6 +131,19 @@ def main(argv: list[str]) -> int:
         "ok": not failures,
         "note": "; ".join(failures)[:500] or None,
     }
+    # Saved-for-later entries lapse after 30 days. They are already hidden from
+    # students by the query, so this only keeps the table from growing.
+    purge = requests.post(
+        f"{url}/rest/v1/rpc/purge_expired_saves",
+        headers={"apikey": key, "Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+        data="{}",
+        timeout=TIMEOUT,
+    )
+    if purge.status_code < 300:
+        print(f"  cleared {purge.text.strip() or 0} expired saved-for-later entries")
+    else:
+        print(f"  (could not clear expired saves: HTTP {purge.status_code})")
+
     log_response = post(url, key, "refresh_runs", log, "return=minimal")
     if log_response.status_code >= 300:
         print(f"  (could not write refresh_runs: HTTP {log_response.status_code})")
