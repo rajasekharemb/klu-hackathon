@@ -131,7 +131,15 @@ $$;
 
 -- ------------------------------------------------------------------- the view
 -- Recommended events first, then the score from 009.
-create or replace view public.upcoming_events
+--
+-- DROP then CREATE, not CREATE OR REPLACE. Replace can only append columns to a
+-- view: it cannot rename or reorder existing ones. The ALTER TABLEs above add
+-- columns to public.events, so "select e.*" expands wider than before and every
+-- column after it shifts along - Postgres rejects that with
+--   42P16: cannot change name of view column "next_date" to "recommended"
+drop view if exists public.upcoming_events;
+
+create view public.upcoming_events
 with (security_invoker = true) as
     select e.*,
            e.deadline as next_date,
@@ -150,6 +158,11 @@ with (security_invoker = true) as
        and e.deadline >= current_date
      order by e.recommended desc, score desc, e.deadline, e.title;
 
+
+-- Dropping the view discarded its grants; put them back. anon is left out on
+-- purpose - only signed-in students should read the listings.
+revoke all on public.upcoming_events from anon;
+grant select on public.upcoming_events to authenticated;
 
 revoke all on function public.set_recommended(bigint, boolean, text) from anon;
 revoke all on function public.add_manual_event(text, text, text, date, date, date, text, text, text, text, text, text) from anon;
