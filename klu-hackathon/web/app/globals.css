@@ -146,3 +146,23 @@ footer { max-width: 1320px; margin: 30px auto 0; padding: 26px 22px 50px; color:
 .morewrap { max-width: 1320px; margin: auto; padding: 8px 22px 40px; text-align: center; }
 .btn.showmore { display: inline-block; flex: none; min-width: 260px; padding: 13px 28px;
   font-size: .95rem; }
+
+/* ------------------------------------------------ recommendations + add form */
+.card.recommended { border-color: var(--orange); box-shadow: 0 0 0 2px #f15a2426, 0 10px 24px #10182618; }
+.flag.rec { left: auto; right: 10px; top: 10px; background: var(--orange); }
+.card.recommended .flag.hiring { top: 42px; }
+.recnote { margin: 0; font-size: .82rem; color: var(--orange); font-weight: 600; }
+.btn.recbtn { flex-basis: 100%; margin-top: 2px; background: var(--card); color: var(--muted);
+  border: 1px dashed var(--line); font-size: .8rem; }
+.btn.recbtn:hover:not(:disabled) { color: var(--orange); border-color: var(--orange); }
+.btn.recbtn.on { background: var(--orange); color: #fff; border-style: solid; border-color: var(--orange); }
+.draftbox { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; margin-top: 12px; }
+.draftgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+.draftgrid .field { margin-bottom: 0; }
+.draftgrid .field span { font-size: .78rem; font-weight: 700; color: var(--muted); }
+.draftgrid .field input, .draftgrid .field select { padding: 9px 11px; border: 1px solid var(--line);
+  border-radius: 8px; font-size: .9rem; font-family: inherit; background: #fff; }
+.draftgrid .wide2 { grid-column: span 2; }
+.draftposter { max-width: 320px; width: 100%; border-radius: 10px; margin-top: 14px;
+  border: 1px solid var(--line); display: block; }
+@media (max-width: 560px) { .draftgrid .wide2 { grid-column: span 1; } }

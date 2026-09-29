@@ -5,6 +5,7 @@ import { canManage, canSeeAdminArea } from "@/lib/roles";
 import SignOutButton from "@/components/SignOutButton";
 import AdminStudents, { type Profile } from "@/components/AdminStudents";
 import AdminRegistrations, { type Registration } from "@/components/AdminRegistrations";
+import AddEventByLink from "@/components/AddEventByLink";
 
 export const dynamic = "force-dynamic";
 
@@ -102,6 +103,21 @@ export default async function AdminPage() {
           </div>
         )}
       </div>
+
+      {isOwner && (
+        <div className="band">
+          <div className="bandhead">
+            <h3>Add an event by link</h3>
+          </div>
+          <p className="sub tablenote">
+            Paste the link to a hackathon or hiring challenge the nightly job has not picked up.
+            The page is read for its title, dates and poster; you correct anything wrong before it
+            is saved. A registration deadline is required, because the portal only shows events
+            students can still enter.
+          </p>
+          <AddEventByLink />
+        </div>
+      )}
 
       <div className="band">
         <div className="bandhead">

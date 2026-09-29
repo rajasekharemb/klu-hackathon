@@ -16,6 +16,7 @@ export default async function DashboardPage() {
     supabase
       .from("upcoming_events")
       .select("*", { count: "exact" })
+      .order("recommended", { ascending: false })
       .order("score", { ascending: false })
       .order("deadline", { ascending: true })
       .range(0, (Number(PAGE_SIZE) || 40) - 1),
@@ -91,7 +92,12 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      <EventBoard initialEvents={events} total={totalEvents} registrations={registrations} />
+      <EventBoard
+        initialEvents={events}
+        total={totalEvents}
+        registrations={registrations}
+        canRecommend={canSeeAdminArea(profile?.role)}
+      />
 
       <footer>
         {lastRun

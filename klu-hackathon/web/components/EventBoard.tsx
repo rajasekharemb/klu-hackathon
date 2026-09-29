@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import RegisterButton from "./RegisterButton";
+import RecommendButton from "./RecommendButton";
 import { browserClient } from "@/lib/supabase/client";
 import { PAGE_SIZE } from "@/lib/config";
 
@@ -31,6 +32,8 @@ export type EventRow = {
   poster_status: string | null;
   tracker_status: string | null;
   score?: number | null;
+  recommended?: boolean | null;
+  recommend_note?: string | null;
 };
 
 const SCOPE_LABELS: Record<string, string> = {
@@ -67,7 +70,15 @@ function registrationState(event: EventRow): [string, string] {
   return ["UPCOMING", "open"];
 }
 
-function EventCard({ event, registration }: { event: EventRow; registration?: Registration }) {
+function EventCard({
+  event,
+  registration,
+  canRecommend,
+}: {
+  event: EventRow;
+  registration?: Registration;
+  canRecommend: boolean;
+}) {
   const [state, stateClass] = registrationState(event);
   const isNew = event.tracker_status === "NEW";
   const hasPoster =
@@ -75,10 +86,13 @@ function EventCard({ event, registration }: { event: EventRow; registration?: Re
   const tags = (event.domains?.length ? event.domains : event.categories ?? []).slice(0, 4);
   const venue = event.location || (event.mode === "online" ? "Virtual" : "Venue to be announced");
 
+  const recommended = Boolean(event.recommended);
+
   return (
-    <article className="card">
+    <article className={`card${recommended ? " recommended" : ""}`}>
       <div className="media">
         <span className={`flag ${isNew ? "new" : "old"}`}>{isNew ? "NEW" : "OLD"}</span>
+        {recommended && <span className="flag rec">★ RECOMMENDED</span>}
         {event.kind === "hiring" && <span className="flag hiring">HIRING</span>}
         {hasPoster ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -93,6 +107,9 @@ function EventCard({ event, registration }: { event: EventRow; registration?: Re
       <div className="body">
         <div className="venue">{venue.toUpperCase()}</div>
         <h4>{event.title}</h4>
+        {recommended && event.recommend_note && (
+          <p className="recnote">{event.recommend_note}</p>
+        )}
 
         <div className="priceline">
           <div className={`prize ${event.prize ? "" : "muted"}`}>{event.prize || "Prize TBA"}</div>
@@ -148,6 +165,7 @@ function EventCard({ event, registration }: { event: EventRow; registration?: Re
             initiallyRegistered={Boolean(registration)}
             initiallyConfirmed={Boolean(registration?.confirmed)}
           />
+          {canRecommend && <RecommendButton eventId={event.id} initial={recommended} />}
         </div>
       </div>
     </article>
@@ -159,11 +177,13 @@ function Band({
   blurb,
   events,
   registrations,
+  canRecommend,
 }: {
   title: string;
   blurb: string;
   events: EventRow[];
   registrations: Map<number, Registration>;
+  canRecommend: boolean;
 }) {
   if (!events.length) return null;
   return (
@@ -176,7 +196,7 @@ function Band({
       <p className="sub tablenote">{blurb}</p>
       <div className="grid">
         {events.map((event) => (
-          <EventCard event={event} registration={registrations.get(event.id)} key={event.id} />
+          <EventCard event={event} registration={registrations.get(event.id)} canRecommend={canRecommend} key={event.id} />
         ))}
       </div>
     </section>
@@ -190,6 +210,7 @@ function Group({
   tone,
   events,
   registrations,
+  canRecommend,
 }: {
   anchor: string;
   heading: string;
@@ -197,6 +218,7 @@ function Group({
   tone: string;
   events: EventRow[];
   registrations: Map<number, Registration>;
+  canRecommend: boolean;
 }) {
   if (!events.length) return null;
   const fresh = events.filter((e) => e.tracker_status === "NEW");
@@ -214,12 +236,14 @@ function Group({
         blurb="Found for the first time in the latest refresh."
         events={fresh}
         registrations={registrations}
+        canRecommend={canRecommend}
       />
       <Band
         title="Previously seen"
         blurb="Recorded earlier and still open."
         events={seen}
         registrations={registrations}
+        canRecommend={canRecommend}
       />
     </div>
   );
@@ -234,10 +258,12 @@ export default function EventBoard({
   initialEvents,
   total,
   registrations = [],
+  canRecommend = false,
 }: {
   initialEvents: EventRow[];
   total: number;
   registrations?: Registration[];
+  canRecommend?: boolean;
 }) {
   const [events, setEvents] = useState<EventRow[]>(initialEvents);
   const [term, setTerm] = useState("");
@@ -271,6 +297,7 @@ export default function EventBoard({
       let query = browserClient()
         .from("upcoming_events")
         .select(SELECT_COLUMNS)
+        .order("recommended", { ascending: false })
         .order("score", { ascending: false })
         .order("deadline", { ascending: true })
         .range(from, from + size - 1);
@@ -379,6 +406,7 @@ export default function EventBoard({
         tone="tone-open"
         events={hackathons}
         registrations={registrationMap}
+        canRecommend={canRecommend}
       />
       <Group
         anchor="hiring"
@@ -387,6 +415,7 @@ export default function EventBoard({
         tone="tone-hiring"
         events={hiring}
         registrations={registrationMap}
+        canRecommend={canRecommend}
       />
 
       {!shown.length && !loading && (
