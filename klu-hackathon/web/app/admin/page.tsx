@@ -110,8 +110,9 @@ export default async function AdminPage() {
           Recorded when a student clicks <b>Register Now</b>, which opens the event&apos;s own site.
           So this shows they went to register; <b>Confirmed</b> is set only when the student presses
           &quot;I registered&quot; afterwards.
+          {!isOwner && " This list is read-only - only the owner can remove records."}
         </p>
-        <AdminRegistrations registrations={registrations} />
+        <AdminRegistrations registrations={registrations} canEdit={isOwner} />
       </div>
 
       {isOwner && (

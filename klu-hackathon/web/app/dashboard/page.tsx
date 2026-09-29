@@ -47,7 +47,7 @@ export default async function DashboardPage() {
           <nav className="navlinks">
             <a href="#hackathons">Hackathons</a>
             <a href="#hiring">Hiring challenges</a>
-            {profile?.role === "admin" && (
+            {(profile?.role === "admin" || profile?.role === "owner") && (
               <a className="adminlink" href="/admin">
                 Admin
               </a>

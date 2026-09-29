@@ -20,7 +20,13 @@ export type Registration = {
   confirmed: boolean;
 };
 
-export default function AdminRegistrations({ registrations }: { registrations: Registration[] }) {
+export default function AdminRegistrations({
+  registrations,
+  canEdit,
+}: {
+  registrations: Registration[];
+  canEdit: boolean;
+}) {
   const router = useRouter();
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [busy, setBusy] = useState(false);
@@ -88,38 +94,44 @@ export default function AdminRegistrations({ registrations }: { registrations: R
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
         />
-        <button
-          type="button"
-          className="minibtn danger"
-          disabled={!selected.size || busy}
-          onClick={deleteSelected}
-        >
-          {busy ? "Deleting..." : `Delete selected${selected.size ? ` (${selected.size})` : ""}`}
-        </button>
+        {canEdit && (
+          <button
+            type="button"
+            className="minibtn danger"
+            disabled={!selected.size || busy}
+            onClick={deleteSelected}
+          >
+            {busy ? "Deleting..." : `Delete selected${selected.size ? ` (${selected.size})` : ""}`}
+          </button>
+        )}
       </div>
 
       <div className="tablewrap">
         <table className="table">
           <thead>
             <tr>
-              <th style={{ width: 34 }}>
-                <input
-                  type="checkbox"
-                  checked={allShownSelected}
-                  onChange={toggleAll}
-                  title="Select all shown"
-                />
-              </th>
+              {canEdit && (
+                <th style={{ width: 34 }}>
+                  <input
+                    type="checkbox"
+                    checked={allShownSelected}
+                    onChange={toggleAll}
+                    title="Select all shown"
+                  />
+                </th>
+              )}
               <th>Student</th><th>Roll no</th><th>Event</th>
               <th>Type</th><th>Clicked</th><th>Times</th><th>Confirmed</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.id} className={selected.has(row.id) ? "picked" : ""}>
-                <td>
-                  <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggle(row.id)} />
-                </td>
+              <tr key={row.id} className={canEdit && selected.has(row.id) ? "picked" : ""}>
+                {canEdit && (
+                  <td>
+                    <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggle(row.id)} />
+                  </td>
+                )}
                 <td>
                   {row.student_name || "-"}
                   <div className="venue">{row.student_email}</div>
@@ -148,7 +160,7 @@ export default function AdminRegistrations({ registrations }: { registrations: R
               </tr>
             ))}
             {!rows.length && (
-              <tr><td colSpan={8}>No registrations{needle ? " match that filter" : " yet"}.</td></tr>
+              <tr><td colSpan={canEdit ? 8 : 7}>No registrations{needle ? " match that filter" : " yet"}.</td></tr>
             )}
           </tbody>
         </table>
