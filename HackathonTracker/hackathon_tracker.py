@@ -95,7 +95,11 @@ LOG_FILE = HERE / "tracker.log"
 DEFAULT_WINDOW_DAYS = 120          # keep events dated within this many days from today
 REQUEST_TIMEOUT = 25               # seconds
 POLITE_DELAY = 0.8                 # seconds between requests to the same host
-MAX_PER_SOURCE = 60                # cap events taken from any single source
+MAX_PER_SOURCE = 250               # default cap on events taken from one source
+# Unstop carries far more than the rest combined, so it gets explicit per-feed caps.
+UNSTOP_FEEDS = (("hackathons", 240), ("competitions", 220))
+UNSTOP_PAGE_SIZE = 25
+UNSTOP_MAX_PAGES = 12
 MAX_POSTER_BYTES = 400_000         # only the first bytes are needed to identify an image
 MIN_POSTER_EDGE = 150              # px; below this it is a logo or an icon
 POSTER_EDGE_FOR_OK = 300           # px; between the two it is a usable thumbnail, not a poster
@@ -337,10 +341,22 @@ class Fetcher:
         headers = {"Accept": "application/json, text/plain, */*"} if as_json else {}
         if max_bytes:
             headers["Range"] = f"bytes=0-{max_bytes - 1}"
-        try:
-            response = self.session.get(url, timeout=REQUEST_TIMEOUT, headers=headers)
-        except requests.RequestException as exc:
-            self.errors.append(f"{url}: {type(exc).__name__}: {exc}")
+        # Government portals (sih.gov.in especially) are slow enough to time out on a
+        # first attempt and answer fine on a second, so a timeout gets one retry.
+        response = None
+        for attempt in (1, 2):
+            try:
+                response = self.session.get(url, timeout=REQUEST_TIMEOUT * attempt, headers=headers)
+                break
+            except (requests.Timeout, requests.ConnectionError) as exc:
+                if attempt == 2:
+                    self.errors.append(f"{url}: {type(exc).__name__}: {exc}")
+                    return None
+                time.sleep(1.5)
+            except requests.RequestException as exc:
+                self.errors.append(f"{url}: {type(exc).__name__}: {exc}")
+                return None
+        if response is None:
             return None
         if response.status_code >= 400:
             self.errors.append(f"{url}: HTTP {response.status_code}")
@@ -752,12 +768,29 @@ def is_in_india(event: Event, include_global: bool = False) -> bool:
 
 
 def source_unstop(fetcher: Fetcher) -> list[Event]:
-    """Unstop's public opportunity API - the largest India-wide student listing."""
+    """Unstop's public opportunity API - the largest India-wide student listing.
+
+    Two feeds, because "hackathons" alone misses most of what a student can enter:
+    Unstop carries roughly 230 open hackathons and another 680 competitions
+    (ideathons, coding contests, case studies, quizzes). The old version read three
+    pages of hackathons only and stopped at 60, so the great majority never appeared.
+
+    Jobs and internships are deliberately left out - they are postings, not contests,
+    and there are another 1,500 of them.
+    """
     events: list[Event] = []
-    for page in (1, 2, 3):
+    for opportunity, cap in UNSTOP_FEEDS:
+        events.extend(_unstop_feed(fetcher, opportunity, cap))
+    return events
+
+
+def _unstop_feed(fetcher: Fetcher, opportunity: str, cap: int) -> list[Event]:
+    """Page through one Unstop feed until it runs out or the cap is reached."""
+    events: list[Event] = []
+    for page in range(1, UNSTOP_MAX_PAGES + 1):
         url = (
             "https://unstop.com/api/public/opportunity/search-result"
-            f"?opportunity=hackathons&per_page=25&oppstatus=open&page={page}"
+            f"?opportunity={opportunity}&per_page={UNSTOP_PAGE_SIZE}&oppstatus=open&page={page}"
         )
         payload = fetcher.get(url, as_json=True)
         if not payload:
@@ -767,42 +800,51 @@ def source_unstop(fetcher: Fetcher) -> list[Event]:
         if not items:
             break
         for item in items:
-            regn = item.get("regnRequirements") or {}
-            organisation = item.get("organisation") or {}
-            event = Event(
-                title=clean(item.get("title"), 200),
-                source="Unstop",
-                url=clean(item.get("seo_url") or f"https://unstop.com/{item.get('public_url', '')}", 400),
-                source_id=str(item.get("id") or ""),
-                organizer=clean(organisation.get("name"), 160),
-                start=parse_date(regn.get("start_regn_dt")),
-                end=parse_date(item.get("end_date")),
-                deadline=parse_date(regn.get("end_regn_dt") or item.get("end_date")),
-                mode=_unstop_mode(item.get("region")),
-                location=clean(_unstop_location(item), 120),
-                prize=_unstop_prize(item.get("prizes")),
-                team_size=_team_size(regn.get("min_team_size"), regn.get("max_team_size")),
-                eligibility=clean(
-                    ", ".join(
-                        f.get("name", "") for f in (item.get("filters") or []) if f.get("type") == "eligible"
-                    ),
-                    200,
-                ),
-                participants=str(item.get("registerCount") or ""),
-                description=clean(item.get("subtype", "").replace("_", " "), 200),
-                domains=_unstop_domains(item),
-            )
-            # Unstop's listing page is itself the registration page.
-            event.registration_url = event.url
-            # Unstop's API only ever exposes a 150x150 thumbnail, and its event pages sit
-            # behind a cookie wall with no og:image, so no larger poster is reachable.
-            # It is used as-is and reported as a thumbnail rather than dressed up as a poster.
-            event.poster = Poster(url=clean(item.get("logoUrl2"), 400))
-            if event.title and event.url:
+            event = _unstop_event(item)
+            if event:
                 events.append(event)
-        if len(events) >= MAX_PER_SOURCE:
+        if len(events) >= cap:
             break
-    return events[:MAX_PER_SOURCE]
+        # last_page tells us when to stop rather than guessing.
+        if isinstance(block, dict) and page >= int(block.get("last_page") or UNSTOP_MAX_PAGES):
+            break
+    log.info("  Unstop/%s: %d", opportunity, len(events[:cap]))
+    return events[:cap]
+
+
+def _unstop_event(item: dict) -> Event | None:
+    regn = item.get("regnRequirements") or {}
+    organisation = item.get("organisation") or {}
+    event = Event(
+        title=clean(item.get("title"), 200),
+        source="Unstop",
+        url=clean(item.get("seo_url") or f"https://unstop.com/{item.get('public_url', '')}", 400),
+        source_id=str(item.get("id") or ""),
+        organizer=clean(organisation.get("name"), 160),
+        start=parse_date(regn.get("start_regn_dt")),
+        end=parse_date(item.get("end_date")),
+        deadline=parse_date(regn.get("end_regn_dt") or item.get("end_date")),
+        mode=_unstop_mode(item.get("region")),
+        location=clean(_unstop_location(item), 120),
+        prize=_unstop_prize(item.get("prizes")),
+        team_size=_team_size(regn.get("min_team_size"), regn.get("max_team_size")),
+        eligibility=clean(
+            ", ".join(f.get("name", "") for f in (item.get("filters") or []) if f.get("type") == "eligible"),
+            200,
+        ),
+        participants=str(item.get("registerCount") or ""),
+        # .get(key, "") still returns None when the key exists and is null, which the
+        # competitions feed has - so coerce rather than default.
+        description=clean(str(item.get("subtype") or "").replace("_", " "), 200),
+        domains=_unstop_domains(item),
+    )
+    # Unstop's listing page is itself the registration page.
+    event.registration_url = event.url
+    # Unstop's API only ever exposes a 150x150 thumbnail, and its event pages sit
+    # behind a cookie wall with no og:image, so no larger poster is reachable.
+    # It is used as-is and reported as a thumbnail rather than dressed up as a poster.
+    event.poster = Poster(url=clean(item.get("logoUrl2"), 400))
+    return event if event.title and event.url else None
 
 
 def _unstop_domains(item: dict) -> list[str]:
@@ -847,41 +889,50 @@ def _team_size(minimum: Any, maximum: Any) -> str:
 def source_devpost(fetcher: Fetcher) -> list[Event]:
     """Devpost's public API, asked for India and for open online events."""
     events: list[Event] = []
+    # Devpost returns ~9 per page, so one page per query was reading a fraction of
+    # what the search actually matches.
     for query in ("india", "student"):
-        payload = fetcher.get(
-            f"https://devpost.com/api/hackathons?search={query}&status[]=open&status[]=upcoming",
-            as_json=True,
-        )
-        if not payload:
-            continue
-        for item in payload.get("hackathons", []):
-            start, end = _devpost_dates(item.get("submission_period_dates", ""))
-            location = item.get("displayed_location") or {}
-            event = Event(
-                title=clean(item.get("title"), 200),
-                source="Devpost",
-                url=clean(item.get("url"), 400),
-                source_id=str(item.get("id") or ""),
-                organizer=clean(item.get("organization_name"), 160),
-                start=start,
-                end=end,
-                deadline=end,
-                mode="online" if "online" in str(location.get("location", "")).lower() else "unknown",
-                location=clean(location.get("location"), 120),
-                prize=clean(re.sub(r"<[^>]+>", "", str(item.get("prize_amount") or "")), 60),
-                participants=str(item.get("registrations_count") or ""),
-                domains=[clean(theme.get("name"), 40) for theme in (item.get("themes") or [])[:4]],
-                eligibility=clean(item.get("eligibility_requirement_invite_only_description"), 200),
+        for page in range(1, 5):
+            payload = fetcher.get(
+                f"https://devpost.com/api/hackathons?search={query}"
+                f"&status[]=open&status[]=upcoming&page={page}",
+                as_json=True,
             )
-            event.registration_url = clean(item.get("start_a_submission_url") or item.get("url"), 400)
-            thumbnail = str(item.get("thumbnail_url") or "")
-            if thumbnail.startswith("//"):
-                thumbnail = f"https:{thumbnail}"
-            # Devpost serves a small square by default; the large variant is the poster.
-            event.poster = Poster(url=thumbnail.replace("medium_square", "large").replace("/thumbnail/", "/large/"))
-            if event.title and event.url:
-                events.append(event)
+            if not payload or not payload.get("hackathons"):
+                break
+            _devpost_page(payload, events)
     return events[:MAX_PER_SOURCE]
+
+
+def _devpost_page(payload: dict, events: list[Event]) -> None:
+    """Turn one page of Devpost results into events."""
+    for item in payload.get("hackathons", []):
+        start, end = _devpost_dates(item.get("submission_period_dates", ""))
+        location = item.get("displayed_location") or {}
+        event = Event(
+            title=clean(item.get("title"), 200),
+            source="Devpost",
+            url=clean(item.get("url"), 400),
+            source_id=str(item.get("id") or ""),
+            organizer=clean(item.get("organization_name"), 160),
+            start=start,
+            end=end,
+            deadline=end,
+            mode="online" if "online" in str(location.get("location", "")).lower() else "unknown",
+            location=clean(location.get("location"), 120),
+            prize=clean(re.sub(r"<[^>]+>", "", str(item.get("prize_amount") or "")), 60),
+            participants=str(item.get("registrations_count") or ""),
+            domains=[clean(theme.get("name"), 40) for theme in (item.get("themes") or [])[:4]],
+            eligibility=clean(item.get("eligibility_requirement_invite_only_description"), 200),
+        )
+        event.registration_url = clean(item.get("start_a_submission_url") or item.get("url"), 400)
+        thumbnail = str(item.get("thumbnail_url") or "")
+        if thumbnail.startswith("//"):
+            thumbnail = f"https:{thumbnail}"
+        # Devpost serves a small square by default; the large variant is the poster.
+        event.poster = Poster(url=thumbnail.replace("medium_square", "large").replace("/thumbnail/", "/large/"))
+        if event.title and event.url:
+            events.append(event)
 
 
 def _devpost_dates(text: str) -> tuple[date | None, date | None]:
@@ -908,7 +959,7 @@ def source_hackerearth(fetcher: Fetcher) -> list[Event]:
             title=clean(item.get("title"), 200),
             source="HackerEarth",
             url=clean(item.get("url"), 400),
-            source_id=clean(item.get("url", "").rstrip("/").rsplit("/", 1)[-1], 80),
+            source_id=clean(str(item.get("url") or "").rstrip("/").rsplit("/", 1)[-1], 80),
             start=parse_date(item.get("start_tz") or item.get("date")),
             end=parse_date(item.get("end_tz") or item.get("end_date")),
             deadline=parse_date(item.get("end_tz") or item.get("end_date")),
@@ -945,7 +996,7 @@ def source_hackindia(fetcher: Fetcher) -> list[Event]:
             if re.search(rf"/({year}|{year + 1})/[a-z0-9-]+/?$", loc):
                 pages.append(loc)
     events: list[Event] = []
-    for url in list(dict.fromkeys(pages))[: MAX_PER_SOURCE // 2]:
+    for url in list(dict.fromkeys(pages))[:120]:
         markup = fetcher.get(url)
         if not markup:
             continue
@@ -961,7 +1012,7 @@ def source_devfolio(fetcher: Fetcher) -> list[Event]:
     slugs = sorted(set(re.findall(r"https?://([a-z0-9][a-z0-9-]{2,})\.devfolio\.co", listing, re.I)))
     ignore = {"api", "assets", "guide", "www", "blog", "help", "docs", "cdn"}
     events: list[Event] = []
-    for slug in [s for s in slugs if s.lower() not in ignore][: MAX_PER_SOURCE // 3]:
+    for slug in [s for s in slugs if s.lower() not in ignore][:60]:
         url = f"https://{slug}.devfolio.co/"
         markup = fetcher.get(url)
         if not markup:
@@ -996,7 +1047,7 @@ def source_hack2skill(fetcher: Fetcher) -> list[Event]:
         if re.search(r"hack2skill\.com/(event|hackathon)/[a-z0-9-]+", link, re.I)
     ]
     events: list[Event] = []
-    for url in list(dict.fromkeys(links))[: MAX_PER_SOURCE // 4]:
+    for url in list(dict.fromkeys(links))[:30]:
         markup = fetcher.get(url)
         if not markup:
             continue
