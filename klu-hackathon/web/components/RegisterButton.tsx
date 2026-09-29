@@ -68,10 +68,19 @@ export default function RegisterButton({
       </a>
 
       {clicked && (
-        <label className="confirmrow" title="Tick this once you have finished registering on the event's own site">
-          <input type="checkbox" checked={confirmed} onChange={toggleConfirmed} disabled={saving} />
-          <span>{confirmed ? "You registered" : "I registered"}</span>
-        </label>
+        <button
+          type="button"
+          className={`btn confirmbtn ${confirmed ? "done" : ""}`}
+          onClick={toggleConfirmed}
+          disabled={saving}
+          title={
+            confirmed
+              ? "Click to undo if you did not actually register"
+              : "Click once you have finished registering on the event's own site"
+          }
+        >
+          {saving ? "Saving..." : confirmed ? "✓ Registered" : "I registered"}
+        </button>
       )}
     </>
   );
