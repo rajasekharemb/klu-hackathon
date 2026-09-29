@@ -4,12 +4,12 @@ import { useState } from "react";
 import { browserClient } from "@/lib/supabase/client";
 
 /**
- * Every registration is reported to the college through one Microsoft Form. Set
+ * Every registration is reported to the college through one Google Form. Set
  * NEXT_PUBLIC_REGISTRATION_FORM_URL in Vercel to change it without touching the code;
  * this default is used when that variable is unset.
  */
 const FORM_URL =
-  process.env.NEXT_PUBLIC_REGISTRATION_FORM_URL || "https://forms.cloud.microsoft/r/vkjJ9TQsm3";
+  process.env.NEXT_PUBLIC_REGISTRATION_FORM_URL || "https://forms.gle/nD11BJCkEc1bQAx98";
 
 /**
  * Two steps, in the order a student actually does them:
