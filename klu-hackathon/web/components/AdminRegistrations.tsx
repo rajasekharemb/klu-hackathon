@@ -15,9 +15,11 @@ export type Registration = {
   source: string | null;
   kind: string;
   event_url: string | null;
+  first_clicked_at: string;
   last_clicked_at: string;
   times_clicked: number;
   confirmed: boolean;
+  confirmed_at: string | null;
 };
 
 export default function AdminRegistrations({
@@ -188,6 +190,9 @@ export default function AdminRegistrations({
                   <span className={`state ${row.confirmed ? "live" : "closed"}`}>
                     {row.confirmed ? "YES" : "not yet"}
                   </span>
+                  {row.confirmed && row.confirmed_at && (
+                    <div className="venue">{new Date(row.confirmed_at).toLocaleString("en-IN")}</div>
+                  )}
                 </td>
               </tr>
             ))}

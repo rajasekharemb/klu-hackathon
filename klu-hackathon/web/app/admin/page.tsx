@@ -57,6 +57,8 @@ export default async function AdminPage() {
   const totalHiring = hiringCount.count ?? 0;
   const runs = (runsResult.data ?? []) as Run[];
   const registrations = (regsResult.data ?? []) as Registration[];
+  // A failed RPC used to render as "0 confirmed", which reads like real data.
+  const registrationsError = regsResult.error?.message ?? "";
   const sourceStats = (statsResult.data ?? []) as Array<{ source: string; total: number }>;
 
   const lastRun = runs[0];
@@ -142,7 +144,15 @@ export default async function AdminPage() {
           never confirmed are not listed - search by roll number, name or event to see those too.
           {!isOwner && " This list is read-only - only the owner can remove records."}
         </p>
-        <AdminRegistrations registrations={registrations} canEdit={isOwner} />
+        {registrationsError ? (
+          <div className="msg error">
+            Could not load registrations: {registrationsError}. If this mentions a function or
+            its arguments, migrations 012 and 013 have not been run yet - this is not an empty
+            list, it is a failed query.
+          </div>
+        ) : (
+          <AdminRegistrations registrations={registrations} canEdit={isOwner} />
+        )}
       </div>
 
       {isOwner && (
