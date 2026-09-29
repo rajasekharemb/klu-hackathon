@@ -4,24 +4,31 @@ import { useState } from "react";
 import { browserClient } from "@/lib/supabase/client";
 
 /**
+ * Every registration goes through one Microsoft Form. Set
+ * NEXT_PUBLIC_REGISTRATION_FORM_URL in Vercel to change it without touching the code;
+ * this default is used when that variable is unset.
+ */
+const FORM_URL =
+  process.env.NEXT_PUBLIC_REGISTRATION_FORM_URL || "https://forms.cloud.microsoft/r/vkjJ9TQsm3";
+
+/**
  * "Register Now" - opens the event's own site and records that this student went there.
  *
  * The click is logged through record_registration_click(), which runs as the signed-in
  * student and can only write that student's own row. The external page is opened first
  * so a slow or failed write never costs the student their click.
  *
- * What this proves: the student went to register. Not that they finished - that happens
- * on Unstop/Devfolio, where we have no visibility. Hence the separate "I registered"
- * confirmation.
+ * The button opens the KLU registration form. Which event the click was for is recorded
+ * here, in our own database, so the admin page still shows who went to register for what
+ * even though the form itself does not know. What we cannot see is whether the student
+ * actually submitted the form - hence the separate "I registered" confirmation.
  */
 export default function RegisterButton({
   eventId,
-  href,
   initiallyRegistered,
   initiallyConfirmed,
 }: {
   eventId: number;
-  href: string;
   initiallyRegistered: boolean;
   initiallyConfirmed: boolean;
 }) {
@@ -59,12 +66,13 @@ export default function RegisterButton({
     <>
       <a
         className="btn primary"
-        href={href}
+        href={FORM_URL}
         target="_blank"
         rel="noopener noreferrer"
         onClick={onRegister}
+        title="Opens the KLU registration form"
       >
-        {clicked ? "Open again" : "Register Now"}
+        {clicked ? "Open form again" : "Register Now"}
       </a>
 
       {clicked && (
@@ -76,7 +84,7 @@ export default function RegisterButton({
           title={
             confirmed
               ? "Click to undo if you did not actually register"
-              : "Click once you have finished registering on the event's own site"
+              : "Click once you have submitted the registration form"
           }
         >
           {saving ? "Saving..." : confirmed ? "✓ Registered" : "I registered"}
