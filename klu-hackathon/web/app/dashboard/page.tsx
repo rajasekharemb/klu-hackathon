@@ -63,8 +63,10 @@ export default async function DashboardPage() {
       <div className="hero">
         <h1>Hackathons &amp; competitions in India</h1>
         <p className="sub">
-          Refreshed automatically at 2:00 AM every day. Newly found events appear at the top of each
-          section. Always confirm dates and eligibility on the official page before applying.
+          Refreshed automatically at 2:00 AM every day. Only events you can still register for are
+          shown - anything past its registration deadline drops off automatically. Newly found
+          events appear at the top of each section. Always confirm dates and eligibility on the
+          official page before applying.
         </p>
         <div className="stats">
           <div className="stat"><b>{hackathons.length}</b><span>Hackathons</span></div>
