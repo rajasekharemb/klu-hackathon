@@ -121,3 +121,23 @@ footer { max-width: 1320px; margin: 30px auto 0; padding: 26px 22px 50px; color:
 @media (max-width: 1100px) { .grid { grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); } }
 @media (max-width: 760px)  { .grid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 520px)  { .grid { grid-template-columns: 1fr; } }
+
+/* ------------------------------------------------------ admin action buttons */
+.rowbtns { display: flex; gap: 6px; flex-wrap: wrap; }
+.minibtn { border: 1px solid var(--line); background: var(--card); color: var(--ink);
+  border-radius: 7px; padding: 6px 11px; font-size: .78rem; font-weight: 700;
+  cursor: pointer; font-family: inherit; white-space: nowrap; }
+.minibtn:hover:not(:disabled) { border-color: var(--dark); }
+.minibtn:disabled { opacity: .4; cursor: not-allowed; }
+.minibtn.danger { color: #a32b1c; border-color: #f3cfca; }
+.minibtn.danger:hover:not(:disabled) { background: #fdeceb; border-color: #a32b1c; }
+.tabletools { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+.adminsearch { flex: 1; min-width: 220px; padding: 9px 13px; border: 1px solid var(--line);
+  border-radius: 9px; font-size: .9rem; font-family: inherit; background: var(--card);
+  margin-bottom: 10px; }
+.tabletools .adminsearch { margin-bottom: 0; }
+.table tr.picked { background: #fff6ee; }
+.table input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--orange); cursor: pointer; }
+.youtag { font-size: .66rem; font-weight: 800; background: var(--dark); color: #fff;
+  border-radius: 99px; padding: 2px 7px; margin-left: 5px; letter-spacing: .04em; }
+.tablenote { font-size: .85rem; margin-top: -6px; margin-bottom: 12px; }
