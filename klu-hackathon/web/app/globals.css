@@ -166,3 +166,12 @@ footer { max-width: 1320px; margin: 30px auto 0; padding: 26px 22px 50px; color:
 .draftposter { max-width: 320px; width: 100%; border-radius: 10px; margin-top: 14px;
   border: 1px solid var(--line); display: block; }
 @media (max-width: 560px) { .draftgrid .wide2 { grid-column: span 1; } }
+
+/* ------------------------------------------------------------ poster field */
+.posterfield { display: flex; flex-direction: column; gap: 6px; }
+.posterrow { display: flex; gap: 8px; flex-wrap: wrap; }
+.posterrow input { flex: 1; min-width: 220px; padding: 9px 11px; border: 1px solid var(--line);
+  border-radius: 8px; font-size: .9rem; font-family: inherit; background: #fff; }
+.errortext { color: #a32b1c; }
+.linkcell { max-width: 320px; overflow-wrap: anywhere; }
+.linkcell .adminsearch { margin-bottom: 0; min-width: 240px; }

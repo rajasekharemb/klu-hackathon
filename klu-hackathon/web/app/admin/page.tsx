@@ -6,6 +6,7 @@ import SignOutButton from "@/components/SignOutButton";
 import AdminStudents, { type Profile } from "@/components/AdminStudents";
 import AdminRegistrations, { type Registration } from "@/components/AdminRegistrations";
 import AddEventByLink from "@/components/AddEventByLink";
+import AdminEvents, { type ManagedEvent } from "@/components/AdminEvents";
 
 export const dynamic = "force-dynamic";
 
@@ -36,12 +37,20 @@ export default async function AdminPage() {
   // functions refuse it too - hiding a button is not a permission.
   const isOwner = canManage(me?.role);
 
-  const [studentsResult, runsResult, eventsResult, regsResult] = await Promise.all([
+  const [studentsResult, runsResult, eventsResult, manageResult, regsResult] = await Promise.all([
     isOwner
       ? supabase.from("profiles").select("*").order("created_at", { ascending: false }).limit(500)
       : Promise.resolve({ data: [] as Profile[] }),
     supabase.from("refresh_runs").select("*").order("ran_at", { ascending: false }).limit(10),
     supabase.from("events").select("kind, tracker_status, poster_status, source"),
+    // Owner only: the list used for deleting an event or correcting its link.
+    isOwner
+      ? supabase
+          .from("events")
+          .select("id,title,kind,source,deadline,url,registration_url,recommended")
+          .order("deadline", { ascending: true, nullsFirst: false })
+          .limit(500)
+      : Promise.resolve({ data: [] as ManagedEvent[] }),
     // Runs as its owner so student names resolve even though a plain admin cannot
     // read the profiles table; it checks is_admin() for itself.
     supabase.rpc("admin_registrations"),
@@ -50,6 +59,7 @@ export default async function AdminPage() {
   const students = (studentsResult.data ?? []) as Profile[];
   const runs = (runsResult.data ?? []) as Run[];
   const events = eventsResult.data ?? [];
+  const managedEvents = (manageResult.data ?? []) as ManagedEvent[];
   const registrations = (regsResult.data ?? []) as Registration[];
 
   const bySource = events.reduce<Record<string, number>>((acc, event) => {
@@ -116,6 +126,21 @@ export default async function AdminPage() {
             students can still enter.
           </p>
           <AddEventByLink />
+        </div>
+      )}
+
+      {isOwner && (
+        <div className="band">
+          <div className="bandhead">
+            <h3>Manage events <span className="count">{managedEvents.length}</span></h3>
+          </div>
+          <p className="sub tablenote">
+            Remove events that should not be listed, or correct a link that has moved -
+            editing the link changes only that, everything else about the event stays as it is.
+            An event the nightly job still finds will reappear tomorrow; to keep it out for good,
+            take it down at the source or leave it recommended-off.
+          </p>
+          <AdminEvents events={managedEvents} />
         </div>
       )}
 

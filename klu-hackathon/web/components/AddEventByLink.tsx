@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { browserClient } from "@/lib/supabase/client";
+import PosterField from "./PosterField";
 
 type Draft = {
   url: string;
@@ -206,20 +207,11 @@ export default function AddEventByLink() {
               <input value={draft.eligibility} onChange={(e) => set("eligibility", e.target.value)} />
             </label>
 
-            <label className="field wide2">
-              <span>Poster image link</span>
-              <input
-                value={draft.poster_url}
-                onChange={(e) => set("poster_url", e.target.value)}
-                placeholder="Right-click the poster on the page, Copy image address"
-              />
-            </label>
+            <div className="field wide2">
+              <span>Poster</span>
+              <PosterField value={draft.poster_url} onChange={(next) => set("poster_url", next)} />
+            </div>
           </div>
-
-          {draft.poster_url && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img className="draftposter" src={draft.poster_url} alt="Poster preview" />
-          )}
 
           <div className="tabletools">
             <button className="minibtn" type="button" onClick={save} disabled={busy}>
