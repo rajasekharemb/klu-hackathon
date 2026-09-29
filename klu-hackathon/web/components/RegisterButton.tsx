@@ -4,7 +4,7 @@ import { useState } from "react";
 import { browserClient } from "@/lib/supabase/client";
 
 /**
- * Every registration goes through one Microsoft Form. Set
+ * Every registration is reported to the college through one Microsoft Form. Set
  * NEXT_PUBLIC_REGISTRATION_FORM_URL in Vercel to change it without touching the code;
  * this default is used when that variable is unset.
  */
@@ -12,23 +12,24 @@ const FORM_URL =
   process.env.NEXT_PUBLIC_REGISTRATION_FORM_URL || "https://forms.cloud.microsoft/r/vkjJ9TQsm3";
 
 /**
- * "Register Now" - opens the event's own site and records that this student went there.
+ * Two steps, in the order a student actually does them:
  *
- * The click is logged through record_registration_click(), which runs as the signed-in
- * student and can only write that student's own row. The external page is opened first
- * so a slow or failed write never costs the student their click.
+ *   Register Now  -> the hackathon's own site (Unstop, Devfolio, HackIndia), where the
+ *                    real registration happens. The click is logged against this event.
+ *   I registered  -> opens the KLU form so the college gets its record, and marks the
+ *                    row confirmed.
  *
- * The button opens the KLU registration form. Which event the click was for is recorded
- * here, in our own database, so the admin page still shows who went to register for what
- * even though the form itself does not know. What we cannot see is whether the student
- * actually submitted the form - hence the separate "I registered" confirmation.
+ * The form cannot know which event was clicked, so that pairing is kept here, in
+ * event_registrations, which is what the admin table reads.
  */
 export default function RegisterButton({
   eventId,
+  href,
   initiallyRegistered,
   initiallyConfirmed,
 }: {
   eventId: number;
+  href: string;
   initiallyRegistered: boolean;
   initiallyConfirmed: boolean;
 }) {
@@ -41,18 +42,20 @@ export default function RegisterButton({
     try {
       await browserClient().rpc("record_registration_click", { p_event_id: eventId });
     } catch {
-      // The external page is already opening; losing the log entry must not
-      // interrupt the student. The next click will record it.
+      // The event's page is already opening; losing the log entry must not interrupt
+      // the student. The next click records it.
     }
   }
 
-  async function toggleConfirmed() {
-    const next = !confirmed;
+  async function setConfirmedTo(next: boolean) {
     setConfirmed(next);
     setSaving(true);
     const supabase = browserClient();
     const { data } = await supabase.auth.getUser();
     if (data.user) {
+      // Make sure a row exists even if the click was never logged, so ticking this
+      // first still records which event it was for.
+      await supabase.rpc("record_registration_click", { p_event_id: eventId });
       await supabase
         .from("event_registrations")
         .update({ confirmed: next, confirmed_at: next ? new Date().toISOString() : null })
@@ -65,30 +68,37 @@ export default function RegisterButton({
   return (
     <>
       <a
-        className="btn primary"
-        href={FORM_URL}
+        className="btn ghost"
+        href={href}
         target="_blank"
         rel="noopener noreferrer"
         onClick={onRegister}
-        title="Opens the KLU registration form"
+        title="Opens the hackathon's own registration page"
       >
-        {clicked ? "Open form again" : "Register Now"}
+        {clicked ? "Open again" : "Register Now"}
       </a>
 
-      {clicked && (
+      {confirmed ? (
         <button
           type="button"
-          className={`btn confirmbtn ${confirmed ? "done" : ""}`}
-          onClick={toggleConfirmed}
+          className="btn confirmbtn done"
+          onClick={() => setConfirmedTo(false)}
           disabled={saving}
-          title={
-            confirmed
-              ? "Click to undo if you did not actually register"
-              : "Click once you have submitted the registration form"
-          }
+          title="Click to undo if you did not actually register"
         >
-          {saving ? "Saving..." : confirmed ? "✓ Registered" : "I registered"}
+          {saving ? "Saving..." : "\u2713 Registered"}
         </button>
+      ) : (
+        <a
+          className="btn confirmbtn"
+          href={FORM_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={() => setConfirmedTo(true)}
+          title="Opens the KLU registration form - fill it in to complete your entry"
+        >
+          I registered - fill the KLU form
+        </a>
       )}
     </>
   );

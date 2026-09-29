@@ -141,6 +141,7 @@ function EventCard({ event, registration }: { event: EventRow; registration?: Re
           </a>
           <RegisterButton
             eventId={event.id}
+            href={event.registration_url || event.url || "#"}
             initiallyRegistered={Boolean(registration)}
             initiallyConfirmed={Boolean(registration?.confirmed)}
           />

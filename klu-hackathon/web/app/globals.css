@@ -84,9 +84,9 @@ h1 { font-size: clamp(1.6rem, 4vw, 2.4rem); margin: .1em 0 .25em; letter-spacing
 .actions { flex-wrap: wrap; }
 /* "I registered" - full width under the two main buttons, so it reads as a follow-up
    step rather than a third equal choice. */
-.btn.confirmbtn { flex-basis: 100%; margin-top: 2px; background: var(--card);
-  color: var(--green); border: 1px dashed var(--green); font-size: .84rem; }
-.btn.confirmbtn:hover { background: #eefaf4; }
+.btn.confirmbtn { flex-basis: 100%; margin-top: 2px; background: #fff6ee;
+  color: var(--orange); border: 1px solid var(--orange); font-size: .8rem; }
+.btn.confirmbtn:hover { background: var(--orange); color: #fff; }
 .btn.confirmbtn.done { background: var(--green); color: #fff; border-style: solid; }
 .btn.confirmbtn:disabled { opacity: .6; cursor: default; }
 
