@@ -3,6 +3,7 @@ import { canSeeAdminArea } from "@/lib/roles";
 import EventBoard, { type EventRow, type Registration, type Saved } from "@/components/EventBoard";
 import { PAGE_SIZE } from "@/lib/config";
 import SignOutButton from "@/components/SignOutButton";
+import SectionNav from "@/components/SectionNav";
 
 export const dynamic = "force-dynamic"; // always show the latest nightly refresh
 
@@ -61,8 +62,7 @@ export default async function DashboardPage() {
             <span className="mark">K</span> KLU Hackathon Portal
           </div>
           <nav className="navlinks">
-            <a href="#hackathons">Hackathons</a>
-            <a href="#hiring">Hiring challenges</a>
+            <SectionNav />
             {canSeeAdminArea(profile?.role) && (
               <a className="adminlink" href="/admin">
                 Admin

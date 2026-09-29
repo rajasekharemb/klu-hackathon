@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import RegisterButton from "./RegisterButton";
 import RecommendButton from "./RecommendButton";
 import SaveButton from "./SaveButton";
+import { SECTION_EVENT } from "./SectionNav";
 import { browserClient } from "@/lib/supabase/client";
 import { PAGE_SIZE } from "@/lib/config";
 
@@ -365,6 +366,25 @@ export default function EventBoard({
     },
     [kind, status, term, scopeIds],
   );
+
+  // The header links pick a section. They also clear any scope filter: asking for
+  // "Hackathons" while "My registrations" is on would otherwise show an empty page
+  // and look like the link was broken.
+  useEffect(() => {
+    function onSection(event: Event) {
+      const which = (event as CustomEvent<"open" | "hiring">).detail;
+      setScope("all");
+      setStatus("all");
+      setKind(which);
+      setTerm("");
+      requestAnimationFrame(() =>
+        document.getElementById(which === "hiring" ? "hiring" : "hackathons")
+          ?.scrollIntoView({ behavior: "smooth", block: "start" }),
+      );
+    }
+    window.addEventListener(SECTION_EVENT, onSection);
+    return () => window.removeEventListener(SECTION_EVENT, onSection);
+  }, []);
 
   // Re-query when a filter or the search text changes. The first render is skipped,
   // because it would throw away the rows the server already rendered.
