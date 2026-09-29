@@ -141,3 +141,8 @@ footer { max-width: 1320px; margin: 30px auto 0; padding: 26px 22px 50px; color:
 .youtag { font-size: .66rem; font-weight: 800; background: var(--dark); color: #fff;
   border-radius: 99px; padding: 2px 7px; margin-left: 5px; letter-spacing: .04em; }
 .tablenote { font-size: .85rem; margin-top: -6px; margin-bottom: 12px; }
+
+/* ------------------------------------------------------------- show more */
+.morewrap { max-width: 1320px; margin: auto; padding: 8px 22px 40px; text-align: center; }
+.btn.showmore { display: inline-block; flex: none; min-width: 260px; padding: 13px 28px;
+  font-size: .95rem; }

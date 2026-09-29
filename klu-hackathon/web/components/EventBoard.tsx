@@ -1,7 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import RegisterButton from "./RegisterButton";
+import { browserClient } from "@/lib/supabase/client";
+
+export const PAGE_SIZE = 60;
 
 export type Registration = { event_id: number; confirmed: boolean };
 
@@ -28,6 +31,7 @@ export type EventRow = {
   poster_url: string | null;
   poster_status: string | null;
   tracker_status: string | null;
+  score?: number | null;
 };
 
 const SCOPE_LABELS: Record<string, string> = {
@@ -170,9 +174,7 @@ function Band({
           {title} <span className="count">{events.length}</span>
         </h3>
       </div>
-      <p className="sub" style={{ marginTop: -8, marginBottom: 14, fontSize: ".88rem" }}>
-        {blurb}
-      </p>
+      <p className="sub tablenote">{blurb}</p>
       <div className="grid">
         {events.map((event) => (
           <EventCard event={event} registration={registrations.get(event.id)} key={event.id} />
@@ -208,61 +210,123 @@ function Group({
         </h2>
         <p>{note}</p>
       </div>
-      <Band title="New" blurb="Found for the first time in the latest refresh."
-            events={fresh} registrations={registrations} />
-      <Band title="Previously seen" blurb="Recorded earlier and still open."
-            events={seen} registrations={registrations} />
+      <Band
+        title="New"
+        blurb="Found for the first time in the latest refresh."
+        events={fresh}
+        registrations={registrations}
+      />
+      <Band
+        title="Previously seen"
+        blurb="Recorded earlier and still open."
+        events={seen}
+        registrations={registrations}
+      />
     </div>
   );
 }
 
+const SELECT_COLUMNS =
+  "id,key,title,source,kind,scope,url,registration_url,start_date,end_date,deadline,mode," +
+  "location,organizer,prize,eligibility,participants,domains,categories,poster_url," +
+  "poster_status,tracker_status,score";
+
 export default function EventBoard({
-  events,
+  initialEvents,
+  total,
   registrations = [],
 }: {
-  events: EventRow[];
+  initialEvents: EventRow[];
+  total: number;
   registrations?: Registration[];
 }) {
+  const [events, setEvents] = useState<EventRow[]>(initialEvents);
   const [term, setTerm] = useState("");
   const [kind, setKind] = useState<"all" | "open" | "hiring">("all");
   const [status, setStatus] = useState<"all" | "NEW" | "OLD">("all");
-  const [mine, setMine] = useState(false);
+  const [onlyMine, setOnlyMine] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [exhausted, setExhausted] = useState(initialEvents.length >= total);
+  const [error, setError] = useState("");
+  const requestId = useRef(0);
 
   const registrationMap = useMemo(
     () => new Map(registrations.map((r) => [r.event_id, r])),
     [registrations],
   );
 
-  const visible = useMemo(() => {
-    const needle = term.trim().toLowerCase();
-    return events.filter((event) => {
-      if (kind !== "all" && (kind === "hiring") !== (event.kind === "hiring")) return false;
-      if (status !== "all" && (event.tracker_status ?? "OLD") !== status) return false;
-      if (mine && !registrationMap.has(event.id)) return false;
-      if (!needle) return true;
-      const haystack = [
-        event.title,
-        event.location,
-        event.organizer,
-        event.source,
-        ...(event.domains ?? []),
-        ...(event.categories ?? []),
-      ]
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(needle);
-    });
-  }, [events, term, kind, status, mine, registrationMap]);
+  /**
+   * Filtering and searching run on the server, not over an array in the browser.
+   * With 400+ events, sending them all on every visit was the largest consumer of
+   * the database's egress allowance; the page now asks for 60 at a time, best
+   * scored first, and fetches more only when the student asks.
+   */
+  const fetchPage = useCallback(
+    async (from: number, replace: boolean) => {
+      const ticket = requestId.current + 1;
+      requestId.current = ticket;
+      setLoading(true);
+      setError("");
 
-  const hackathons = visible.filter((e) => e.kind !== "hiring");
-  const hiring = visible.filter((e) => e.kind === "hiring");
+      let query = browserClient()
+        .from("upcoming_events")
+        .select(SELECT_COLUMNS)
+        .order("score", { ascending: false })
+        .order("deadline", { ascending: true })
+        .range(from, from + PAGE_SIZE - 1);
+
+      if (kind !== "all") query = query.eq("kind", kind);
+      if (status !== "all") query = query.eq("tracker_status", status);
+
+      const needle = term.trim();
+      if (needle) {
+        // Commas and parentheses are separators in PostgREST's or() syntax.
+        const safe = needle.replace(/[%,()]/g, " ");
+        query = query.or(
+          `title.ilike.%${safe}%,location.ilike.%${safe}%,` +
+            `organizer.ilike.%${safe}%,source.ilike.%${safe}%`,
+        );
+      }
+
+      const { data, error: queryError } = await query;
+      // A slow earlier request must not overwrite a newer one's results.
+      if (requestId.current !== ticket) return;
+
+      if (queryError) {
+        setError(queryError.message);
+        setLoading(false);
+        return;
+      }
+      const rows = (data ?? []) as unknown as EventRow[];
+      setEvents((current) => (replace ? rows : [...current, ...rows]));
+      setExhausted(rows.length < PAGE_SIZE);
+      setLoading(false);
+    },
+    [kind, status, term],
+  );
+
+  // Re-query when a filter or the search text changes. The first render is skipped,
+  // because it would throw away the rows the server already rendered.
+  const firstRender = useRef(true);
+  useEffect(() => {
+    if (firstRender.current) {
+      firstRender.current = false;
+      return;
+    }
+    const timer = setTimeout(() => fetchPage(0, true), 250); // debounce typing
+    return () => clearTimeout(timer);
+  }, [fetchPage]);
+
+  const shown = onlyMine ? events.filter((e) => registrationMap.has(e.id)) : events;
+  const hackathons = shown.filter((e) => e.kind !== "hiring");
+  const hiring = shown.filter((e) => e.kind === "hiring");
 
   return (
     <>
       <div className="toolbar">
         <input
           type="search"
-          placeholder="Search by name, college, city, domain..."
+          placeholder="Search by name, college, city, organiser..."
           value={term}
           onChange={(e) => setTerm(e.target.value)}
         />
@@ -291,18 +355,24 @@ export default function EventBoard({
           ))}
         </span>
         <button
-          className={`chipbtn ${mine ? "on" : ""}`}
-          onClick={() => setMine(!mine)}
+          className={`chipbtn ${onlyMine ? "on" : ""}`}
+          onClick={() => setOnlyMine(!onlyMine)}
           type="button"
         >
           My registrations{registrations.length ? ` (${registrations.length})` : ""}
         </button>
       </div>
 
+      {error && (
+        <div className="band">
+          <div className="msg error">Could not load events: {error}</div>
+        </div>
+      )}
+
       <Group
         anchor="hackathons"
         heading="Hackathons & competitions"
-        note="Open contests you enter to build something and win a prize."
+        note="Open contests you enter to build something and win a prize. Best matches first."
         tone="tone-open"
         events={hackathons}
         registrations={registrationMap}
@@ -316,7 +386,27 @@ export default function EventBoard({
         registrations={registrationMap}
       />
 
-      {!visible.length && <p className="empty">Nothing matches that search.</p>}
+      {!shown.length && !loading && (
+        <p className="empty">
+          {onlyMine ? "You have not registered for anything yet." : "Nothing matches that search."}
+        </p>
+      )}
+
+      <div className="morewrap">
+        {!exhausted && !onlyMine && (
+          <button
+            className="btn primary showmore"
+            type="button"
+            disabled={loading}
+            onClick={() => fetchPage(events.length, false)}
+          >
+            {loading ? "Loading..." : `Show more (${events.length} of ${total} shown)`}
+          </button>
+        )}
+        {exhausted && shown.length > 0 && (
+          <p className="empty">That is everything &mdash; {shown.length} shown.</p>
+        )}
+      </div>
     </>
   );
 }

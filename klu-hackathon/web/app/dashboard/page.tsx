@@ -1,6 +1,6 @@
 ﻿import { serverClient } from "@/lib/supabase/server";
 import { canSeeAdminArea } from "@/lib/roles";
-import EventBoard, { type EventRow, type Registration } from "@/components/EventBoard";
+import EventBoard, { PAGE_SIZE, type EventRow, type Registration } from "@/components/EventBoard";
 import SignOutButton from "@/components/SignOutButton";
 
 export const dynamic = "force-dynamic"; // always show the latest nightly refresh
@@ -10,15 +10,19 @@ export default async function DashboardPage() {
 
   const [{ data: user }, eventsResult, runResult] = await Promise.all([
     supabase.auth.getUser(),
+    // Only the first page, best scored first. The board fetches more on demand -
+    // sending all 400+ on every visit was the biggest draw on the egress allowance.
     supabase
       .from("upcoming_events")
-      .select("*")
-      .order("next_date", { ascending: true, nullsFirst: false })
-      .limit(500),
+      .select("*", { count: "exact" })
+      .order("score", { ascending: false })
+      .order("deadline", { ascending: true })
+      .range(0, PAGE_SIZE - 1),
     supabase.from("refresh_runs").select("*").order("ran_at", { ascending: false }).limit(1),
   ]);
 
   const events = (eventsResult.data ?? []) as EventRow[];
+  const totalEvents = eventsResult.count ?? events.length;
   const lastRun = runResult.data?.[0];
 
   const { data: profile } = await supabase
@@ -33,10 +37,11 @@ export default async function DashboardPage() {
     .select("event_id, confirmed");
   const registrations = (registrationRows ?? []) as Registration[];
 
-  const hackathons = events.filter((e) => e.kind !== "hiring");
-  const hiring = events.filter((e) => e.kind === "hiring");
-  const fresh = events.filter((e) => e.tracker_status === "NEW");
-  const posters = events.filter((e) => e.poster_status === "ok" || e.poster_status === "thumbnail");
+  // Counted across every open event, not just the page that was sent.
+  const [hiringCount, freshCount] = await Promise.all([
+    supabase.from("upcoming_events").select("id", { count: "exact", head: true }).eq("kind", "hiring"),
+    supabase.from("upcoming_events").select("id", { count: "exact", head: true }).eq("tracker_status", "NEW"),
+  ]).then((results) => results.map((r) => r.count ?? 0));
 
   return (
     <>
@@ -69,10 +74,10 @@ export default async function DashboardPage() {
           official page before applying.
         </p>
         <div className="stats">
-          <div className="stat"><b>{hackathons.length}</b><span>Hackathons</span></div>
-          <div className="stat"><b>{hiring.length}</b><span>Hiring challenges</span></div>
-          <div className="stat"><b>{fresh.length}</b><span>New</span></div>
-          <div className="stat"><b>{posters.length}</b><span>Posters</span></div>
+          <div className="stat"><b>{totalEvents - hiringCount}</b><span>Hackathons</span></div>
+          <div className="stat"><b>{hiringCount}</b><span>Hiring challenges</span></div>
+          <div className="stat"><b>{freshCount}</b><span>New</span></div>
+          <div className="stat"><b>{totalEvents}</b><span>Open now</span></div>
         </div>
       </div>
 
@@ -85,7 +90,7 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      <EventBoard events={events} registrations={registrations} />
+      <EventBoard initialEvents={events} total={totalEvents} registrations={registrations} />
 
       <footer>
         {lastRun
