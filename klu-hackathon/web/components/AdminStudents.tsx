@@ -22,9 +22,10 @@ export default function AdminStudents({ students, meId }: { students: Profile[];
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("");
 
-  // Every guard is enforced again inside the database functions. These only decide
-  // which buttons are worth showing.
-  const adminCount = students.filter((s) => s.role === "admin").length;
+  // Every guard is enforced again inside the database functions - set_admin and
+  // admin_delete_student both require is_owner(). These only decide which buttons
+  // are worth showing; only the owner ever reaches this component at all.
+  const adminCount = students.filter((s) => s.role === "admin" || s.role === "owner").length;
 
   // Supabase's rpc() returns a thenable query builder rather than a Promise, so the
   // parameter is typed PromiseLike - Promise<T> would not accept it.
@@ -94,7 +95,10 @@ export default function AdminStudents({ students, meId }: { students: Profile[];
             {rows.map((student) => {
               const isMe = student.id === meId;
               const isAdmin = student.role === "admin";
+              const isOwnerRow = student.role === "owner";
               const lastAdmin = isAdmin && adminCount <= 1;
+              // The owner account is not editable from this table, by anyone.
+              const locked = isOwnerRow || isMe;
               return (
                 <tr key={student.id}>
                   <td>{student.roll_no || "-"}</td>
@@ -110,29 +114,39 @@ export default function AdminStudents({ students, meId }: { students: Profile[];
                       <button
                         type="button"
                         className="minibtn"
-                        disabled={busy !== null || (isAdmin && (isMe || lastAdmin))}
+                        disabled={busy !== null || locked || (isAdmin && lastAdmin)}
                         title={
-                          isAdmin && isMe
-                            ? "You cannot remove your own admin access"
-                            : isAdmin && lastAdmin
-                              ? "This is the only admin"
-                              : isAdmin
-                                ? "Remove admin access"
-                                : "Give admin access"
+                          isOwnerRow
+                            ? "The owner account cannot be changed"
+                            : isMe
+                              ? "You cannot change your own role"
+                              : isAdmin && lastAdmin
+                                ? "This is the only admin"
+                                : isAdmin
+                                  ? "Remove admin access - they keep student access"
+                                  : "Give access to registrations and the refresh log"
                         }
                         onClick={() => toggleRole(student)}
                       >
                         {busy === `role-${student.id}`
                           ? "..."
-                          : isAdmin
-                            ? "Make student"
-                            : "Make admin"}
+                          : isOwnerRow
+                            ? "Owner"
+                            : isAdmin
+                              ? "Make student"
+                              : "Make admin"}
                       </button>
                       <button
                         type="button"
                         className="minibtn danger"
-                        disabled={busy !== null || isMe || lastAdmin}
-                        title={isMe ? "You cannot delete your own account" : "Delete this account"}
+                        disabled={busy !== null || locked}
+                        title={
+                          isOwnerRow
+                            ? "The owner account cannot be deleted"
+                            : isMe
+                              ? "You cannot delete your own account"
+                              : "Delete this account and its registrations"
+                        }
                         onClick={() => remove(student)}
                       >
                         {busy === `del-${student.id}` ? "..." : "Delete"}

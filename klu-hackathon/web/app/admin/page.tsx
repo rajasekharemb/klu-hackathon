@@ -28,13 +28,21 @@ export default async function AdminPage() {
   // Middleware already gated this, but the page checks again: a redirect is a UI
   // decision, not a security boundary. RLS is what actually protects the rows.
   const { data: me } = await supabase.from("profiles").select("role, full_name").eq("id", user.id).maybeSingle();
-  if (me?.role !== "admin") redirect("/dashboard");
+  if (me?.role !== "admin" && me?.role !== "owner") redirect("/dashboard");
+
+  // Only the owner manages accounts. The page hides that section, and the database
+  // functions refuse it too - hiding a button is not a permission.
+  const isOwner = me?.role === "owner";
 
   const [studentsResult, runsResult, eventsResult, regsResult] = await Promise.all([
-    supabase.from("profiles").select("*").order("created_at", { ascending: false }).limit(500),
+    isOwner
+      ? supabase.from("profiles").select("*").order("created_at", { ascending: false }).limit(500)
+      : Promise.resolve({ data: [] as Profile[] }),
     supabase.from("refresh_runs").select("*").order("ran_at", { ascending: false }).limit(10),
     supabase.from("events").select("kind, tracker_status, poster_status, source"),
-    supabase.from("registration_report").select("*").order("last_clicked_at", { ascending: false }).limit(500),
+    // Runs as its owner so student names resolve even though a plain admin cannot
+    // read the profiles table; it checks is_admin() for itself.
+    supabase.rpc("admin_registrations"),
   ]);
 
   const students = (studentsResult.data ?? []) as Profile[];
@@ -55,7 +63,7 @@ export default async function AdminPage() {
       <div className="topbar">
         <div className="topinner">
           <div className="brand">
-            <span className="mark">K</span> Admin
+            <span className="mark">K</span> {isOwner ? "Owner" : "Admin"}
           </div>
           <nav className="navlinks">
             <Link href="/dashboard">Student view</Link>
@@ -71,8 +79,15 @@ export default async function AdminPage() {
         <p className="sub">Accounts, registrations and the nightly refresh.</p>
 
         <div className="stats">
-          <div className="stat"><b>{students.length}</b><span>Accounts</span></div>
-          <div className="stat"><b>{students.filter((s) => s.role === "admin").length}</b><span>Admins</span></div>
+          {isOwner && (
+            <>
+              <div className="stat"><b>{students.length}</b><span>Accounts</span></div>
+              <div className="stat">
+                <b>{students.filter((s) => s.role === "admin" || s.role === "owner").length}</b>
+                <span>Admins</span>
+              </div>
+            </>
+          )}
           <div className="stat"><b>{events.length}</b><span>Events</span></div>
           <div className="stat"><b>{events.filter((e) => e.kind === "hiring").length}</b><span>Hiring</span></div>
           <div className="stat"><b>{registrations.length}</b><span>Registrations</span></div>
@@ -99,17 +114,19 @@ export default async function AdminPage() {
         <AdminRegistrations registrations={registrations} />
       </div>
 
-      <div className="band">
-        <div className="bandhead">
-          <h3>Accounts <span className="count">{students.length}</span></h3>
+      {isOwner && (
+        <div className="band">
+          <div className="bandhead">
+            <h3>Accounts <span className="count">{students.length}</span></h3>
+          </div>
+          <p className="sub tablenote">
+            Only you can see this section. <b>Make admin</b> gives someone the registrations,
+            refresh log and event figures - but not this table, so they cannot promote anyone
+            else or remove you. Your own owner account cannot be changed or deleted here.
+          </p>
+          <AdminStudents students={students} meId={user.id} />
         </div>
-        <p className="sub tablenote">
-          <b>Make admin</b> gives full access to this page, including every student&apos;s details.
-          You cannot remove your own admin access or delete your own account, and the last
-          remaining admin is protected - that is what stops the portal locking everyone out.
-        </p>
-        <AdminStudents students={students} meId={user.id} />
-      </div>
+      )}
 
       <div className="band">
         <div className="bandhead">
