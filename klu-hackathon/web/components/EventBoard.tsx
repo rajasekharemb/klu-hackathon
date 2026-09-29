@@ -200,12 +200,14 @@ function Band({
   if (!events.length) return null;
   return (
     <section className="band">
-      <div className="bandhead">
-        <h3>
-          {title} <span className="count">{events.length}</span>
-        </h3>
-      </div>
-      <p className="sub tablenote">{blurb}</p>
+      {title && (
+        <div className="bandhead">
+          <h3>
+            {title} <span className="count">{events.length}</span>
+          </h3>
+        </div>
+      )}
+      {blurb && <p className="sub tablenote">{blurb}</p>}
       <div className="grid">
         {events.map((event) => (
           <EventCard
@@ -241,8 +243,11 @@ function Group({
   canRecommend: boolean;
 }) {
   if (!events.length) return null;
-  const fresh = events.filter((e) => e.tracker_status === "NEW");
-  const seen = events.filter((e) => e.tracker_status !== "NEW");
+  // One list, best first. It used to split into "New" and "Previously seen", but
+  // OLD only means the tracker saw the event on an earlier run - not that this
+  // student has - so the second heading suggested something it did not mean and
+  // pushed perfectly open events below the fold. The NEW flag on each card still
+  // marks the recent ones, and the New only / Old only chips still narrow the list.
   return (
     <div className="groupwrap" id={anchor}>
       <div className={`grouphead ${tone}`}>
@@ -252,17 +257,9 @@ function Group({
         <p>{note}</p>
       </div>
       <Band
-        title="New"
-        blurb="Found for the first time in the latest refresh."
-        events={fresh}
-        registrations={registrations}
-        savedMap={savedMap}
-        canRecommend={canRecommend}
-      />
-      <Band
-        title="Previously seen"
-        blurb="Recorded earlier and still open."
-        events={seen}
+        title=""
+        blurb=""
+        events={events}
         registrations={registrations}
         savedMap={savedMap}
         canRecommend={canRecommend}
