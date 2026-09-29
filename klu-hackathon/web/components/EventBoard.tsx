@@ -3,8 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import RegisterButton from "./RegisterButton";
 import { browserClient } from "@/lib/supabase/client";
-
-export const PAGE_SIZE = 60;
+import { PAGE_SIZE } from "@/lib/config";
 
 export type Registration = { event_id: number; confirmed: boolean };
 
@@ -265,6 +264,7 @@ export default function EventBoard({
     async (from: number, replace: boolean) => {
       const ticket = requestId.current + 1;
       requestId.current = ticket;
+      const size = Number(PAGE_SIZE) || 40;
       setLoading(true);
       setError("");
 
@@ -273,7 +273,7 @@ export default function EventBoard({
         .select(SELECT_COLUMNS)
         .order("score", { ascending: false })
         .order("deadline", { ascending: true })
-        .range(from, from + PAGE_SIZE - 1);
+        .range(from, from + size - 1);
 
       if (kind !== "all") query = query.eq("kind", kind);
       if (status !== "all") query = query.eq("tracker_status", status);
@@ -299,7 +299,7 @@ export default function EventBoard({
       }
       const rows = (data ?? []) as unknown as EventRow[];
       setEvents((current) => (replace ? rows : [...current, ...rows]));
-      setExhausted(rows.length < PAGE_SIZE);
+      setExhausted(rows.length < size);
       setLoading(false);
     },
     [kind, status, term],
@@ -311,11 +311,14 @@ export default function EventBoard({
   useEffect(() => {
     if (firstRender.current) {
       firstRender.current = false;
+      // Safety net: if the server rendered nothing while the count says there is
+      // something, fetch the first page here rather than showing a blank board.
+      if (initialEvents.length === 0 && total > 0) fetchPage(0, true);
       return;
     }
     const timer = setTimeout(() => fetchPage(0, true), 250); // debounce typing
     return () => clearTimeout(timer);
-  }, [fetchPage]);
+  }, [fetchPage, initialEvents.length, total]);
 
   const shown = onlyMine ? events.filter((e) => registrationMap.has(e.id)) : events;
   const hackathons = shown.filter((e) => e.kind !== "hiring");
@@ -388,7 +391,11 @@ export default function EventBoard({
 
       {!shown.length && !loading && (
         <p className="empty">
-          {onlyMine ? "You have not registered for anything yet." : "Nothing matches that search."}
+          {onlyMine
+            ? "You have not registered for anything yet."
+            : term.trim() || kind !== "all" || status !== "all"
+              ? "Nothing matches that search."
+              : "No events are open for registration right now."}
         </p>
       )}
 
@@ -400,7 +407,7 @@ export default function EventBoard({
             disabled={loading}
             onClick={() => fetchPage(events.length, false)}
           >
-            {loading ? "Loading..." : `Show more (${events.length} of ${total} shown)`}
+            {loading ? "Loading..." : `Show ${Math.min(PAGE_SIZE, total - events.length)} more — ${events.length} of ${total} shown`}
           </button>
         )}
         {exhausted && shown.length > 0 && (

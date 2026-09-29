@@ -1,6 +1,7 @@
 ﻿import { serverClient } from "@/lib/supabase/server";
 import { canSeeAdminArea } from "@/lib/roles";
-import EventBoard, { PAGE_SIZE, type EventRow, type Registration } from "@/components/EventBoard";
+import EventBoard, { type EventRow, type Registration } from "@/components/EventBoard";
+import { PAGE_SIZE } from "@/lib/config";
 import SignOutButton from "@/components/SignOutButton";
 
 export const dynamic = "force-dynamic"; // always show the latest nightly refresh
@@ -17,7 +18,7 @@ export default async function DashboardPage() {
       .select("*", { count: "exact" })
       .order("score", { ascending: false })
       .order("deadline", { ascending: true })
-      .range(0, PAGE_SIZE - 1),
+      .range(0, (Number(PAGE_SIZE) || 40) - 1),
     supabase.from("refresh_runs").select("*").order("ran_at", { ascending: false }).limit(1),
   ]);
 
