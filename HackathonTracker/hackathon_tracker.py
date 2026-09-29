@@ -323,6 +323,9 @@ class Fetcher:
         self.obey_robots = obey_robots
         self._last_hit: dict[str, float] = {}
         self.errors: list[str] = []
+        # robots.txt denials are a site's stated wish, not a failure on our side.
+        # Kept apart so the error count stays a signal that something is wrong.
+        self.skipped: list[str] = []
 
     def _wait(self, url: str) -> None:
         host = urlparse(url).netloc
@@ -334,8 +337,8 @@ class Fetcher:
     def get(self, url: str, as_json: bool = False, max_bytes: int = 0) -> Any:
         """Return parsed JSON, text, or bytes. Returns None on any failure."""
         if self.obey_robots and not self.robots.allows(url):
-            self.errors.append(f"robots.txt disallows {url}")
-            log.warning("  skipped (robots.txt): %s", url)
+            self.skipped.append(url)
+            log.info("  skipped (robots.txt): %s", url)
             return None
         self._wait(url)
         headers = {"Accept": "application/json, text/plain, */*"} if as_json else {}
@@ -1921,6 +1924,7 @@ def main(argv: list[str] | None = None) -> int:
         "per_kind": {kind: sum(1 for e in kept if e.kind == kind) for kind in KINDS},
         "coverage": "India only" if not args.include_global else "India plus global online events",
         "errors": fetcher.errors,
+        "robots_skipped": len(fetcher.skipped),
     }
     problems = write_outputs(kept, summary, args.quiet)
 
@@ -1933,6 +1937,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  OLD (seen before): {old_count}")
     print(f"  Posters verified : {summary['posters_ok']} (+{summary['posters_thumbnail']} thumbnails)")
     print(f"  Source errors    : {len(fetcher.errors)}")
+    if fetcher.skipped:
+        print(f"  Skipped by robots: {len(fetcher.skipped)}")
     print(f"  Excel            : {OUTPUT_DIR / 'hackathons_latest.xlsx'}")
     print(f"  Folder           : {OUTPUT_DIR}")
     for problem in problems:
