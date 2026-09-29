@@ -108,6 +108,22 @@ function labelledDate(text: string): string | null {
   return null;
 }
 
+/** A draft with nothing filled in but the link, plus why. */
+function blank(url: URL, warning: string) {
+  return {
+    url: url.toString(),
+    title: "",
+    description: "",
+    organizer: url.hostname.replace(/^www\./, ""),
+    poster_url: "",
+    deadline: "",
+    start: "",
+    end: "",
+    found_dates: [] as string[],
+    warning: `${warning} Fill the details in by hand - they are all optional except the title and the deadline.`,
+  };
+}
+
 export async function POST(request: Request) {
   const supabase = serverClient();
   const {
@@ -136,20 +152,22 @@ export async function POST(request: Request) {
       signal: AbortSignal.timeout(TIMEOUT_MS),
       headers: {
         "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36",
-        Accept: "text/html,application/xhtml+xml",
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-IN,en;q=0.9",
+        "Upgrade-Insecure-Requests": "1",
       },
     });
     if (!response.ok) {
-      return NextResponse.json(
-        { error: `The page returned HTTP ${response.status}.` },
-        { status: 502 },
-      );
+      // 403/503 from Cloudflare and friends is normal for a server-side fetch.
+      // Hand back a blank draft so the owner can fill it in rather than being stuck.
+      return NextResponse.json(blank(url, `The site refused our request (HTTP ${response.status}).`));
     }
     html = (await response.text()).slice(0, MAX_BYTES);
   } catch (error) {
-    const reason = error instanceof Error && error.name === "TimeoutError" ? "timed out" : "could not be reached";
-    return NextResponse.json({ error: `That page ${reason}.` }, { status: 502 });
+    const reason =
+      error instanceof Error && error.name === "TimeoutError" ? "timed out" : "could not be reached";
+    return NextResponse.json(blank(url, `That page ${reason}.`));
   }
 
   const text = visibleText(html);
@@ -158,7 +176,18 @@ export async function POST(request: Request) {
   const deadline = labelledDate(text);
   const poster = meta(html, "og:image:secure_url", "og:image", "twitter:image");
 
+  // Sites built as JavaScript apps serve a near-empty shell: a title, a script
+  // tag and nothing else. There is genuinely nothing to read, so say so instead
+  // of handing back a draft that looks like it failed silently.
+  const looksClientRendered = !poster && dates.length === 0 && text.length < 400;
+  const warning = looksClientRendered
+    ? "This page builds itself with JavaScript, so it carries no details we can read. " +
+      "Copy the poster's image address from the page (right-click the poster, Copy image address) " +
+      "and type the dates in yourself."
+    : undefined;
+
   return NextResponse.json({
+    warning,
     url: url.toString(),
     title: meta(html, "og:title") || decode(titleTag?.[1] ?? ""),
     description: meta(html, "og:description", "description").slice(0, 400),

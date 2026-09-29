@@ -36,6 +36,7 @@ export default function AddEventByLink() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [found, setFound] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [warning, setWarning] = useState("");
   const [error, setError] = useState("");
   const [done, setDone] = useState("");
 
@@ -47,6 +48,7 @@ export default function AddEventByLink() {
     formEvent.preventDefault();
     setBusy(true);
     setError("");
+    setWarning("");
     setDone("");
     try {
       const response = await fetch("/api/inspect-link", {
@@ -62,6 +64,7 @@ export default function AddEventByLink() {
       }
       setDraft({ ...EMPTY, ...data, kind: "open" });
       setFound(data.found_dates ?? []);
+      setWarning(data.warning ?? "");
     } catch {
       setError("Could not reach that page.");
     }
@@ -105,6 +108,7 @@ export default function AddEventByLink() {
     <>
       {error && <div className="msg error">{error}</div>}
       {done && <div className="msg ok">{done}</div>}
+      {warning && <div className="msg info">{warning}</div>}
 
       <form className="tabletools" onSubmit={inspect}>
         <input
@@ -118,8 +122,27 @@ export default function AddEventByLink() {
         <button className="minibtn" type="submit" disabled={busy || !link.trim()}>
           {busy && !draft ? "Reading..." : "Read the page"}
         </button>
+        {!draft && (
+          <button
+            className="minibtn"
+            type="button"
+            disabled={!link.trim()}
+            onClick={() => {
+              setDraft({ ...EMPTY, url: link.trim() });
+              setFound([]);
+              setError("");
+              setWarning("Filling this in by hand - nothing was read from the page.");
+            }}
+          >
+            Skip and type it in
+          </button>
+        )}
         {draft && (
-          <button className="minibtn" type="button" onClick={() => { setDraft(null); setError(""); }}>
+          <button
+            className="minibtn"
+            type="button"
+            onClick={() => { setDraft(null); setError(""); setWarning(""); }}
+          >
             Cancel
           </button>
         )}
@@ -128,8 +151,9 @@ export default function AddEventByLink() {
       {draft && (
         <div className="draftbox">
           <p className="sub tablenote">
-            This is what the page gave up. Correct anything that is wrong - especially the dates,
-            which are read out of the page text and are the most likely to be misread - then save.
+            {warning
+              ? "Type in what the page shows. Only the title and the registration deadline are required."
+              : "This is what the page gave up. Correct anything wrong - especially the dates, which are read out of the page text and are the most likely to be misread."}
             {found.length > 1 && ` Dates seen on the page: ${found.join(", ")}.`}
           </p>
 
@@ -184,7 +208,11 @@ export default function AddEventByLink() {
 
             <label className="field wide2">
               <span>Poster image link</span>
-              <input value={draft.poster_url} onChange={(e) => set("poster_url", e.target.value)} />
+              <input
+                value={draft.poster_url}
+                onChange={(e) => set("poster_url", e.target.value)}
+                placeholder="Right-click the poster on the page, Copy image address"
+              />
             </label>
           </div>
 
