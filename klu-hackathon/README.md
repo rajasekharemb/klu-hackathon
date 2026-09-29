@@ -203,6 +203,25 @@ name, roll number, branch and email. An admin login is also the first thing an a
 tries, and unlike a student account it is worth brute-forcing. A short password on this
 account puts everyone's data at risk, not just yours.
 
+### Giving someone else admin
+
+Run `supabase/003_admin_grants.sql` once, then in the SQL editor:
+
+```sql
+select public.set_admin('someone@kluniversity.in');          -- grant
+select public.set_admin('someone@kluniversity.in', false);   -- revoke
+select email, full_name, role from public.profiles where role = 'admin';
+```
+
+They must have signed up first - the function reports "No profile found" otherwise.
+They need to sign out and back in for the change to take effect, because the role is
+read when the session's page loads.
+
+A plain `update public.profiles set role = 'admin'` does **not** work, and fails
+silently: `profiles_protect` reverts it. That trigger is what stops a student
+promoting themselves, and the SQL editor has no JWT for it to recognise. Use
+`set_admin()`, or `create_admin.py` for someone with no account yet.
+
 ### What the admin can see
 
 `/admin` shows every registered student, the last ten nightly refreshes with their error
