@@ -25,9 +25,10 @@ const COLUMNS = "id,title,kind,source,deadline,url,registration_url,recommended"
  * allows update and delete for the owner and nobody else, so no extra function
  * is needed and the database refuses anyone else regardless of what is sent.
  */
-export default function AdminEvents({ events: initial }: { events: ManagedEvent[] }) {
+export default function AdminEvents({ total }: { total: number }) {
   const router = useRouter();
-  const [events, setEvents] = useState(initial);
+  const [events, setEvents] = useState<ManagedEvent[]>([]);
+  const [searched, setSearched] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [editing, setEditing] = useState<number | null>(null);
   const [draftUrl, setDraftUrl] = useState("");
@@ -36,13 +37,32 @@ export default function AdminEvents({ events: initial }: { events: ManagedEvent[
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
-  const needle = filter.trim().toLowerCase();
-  const rows = needle
-    ? events.filter((e) =>
-        [e.title, e.source, e.url].join(" ").toLowerCase().includes(needle),
-      )
-    : events;
+  const rows = events;
   const allShownSelected = rows.length > 0 && rows.every((e) => selected.has(e.id));
+
+  /** Nothing is listed until it is asked for. */
+  async function search(formEvent?: React.FormEvent) {
+    formEvent?.preventDefault();
+    const needle = filter.trim();
+    if (!needle) return;
+    setBusy(true);
+    setError("");
+    setMessage("");
+    const { data, error: queryError } = await browserClient()
+      .from("events")
+      .select(COLUMNS)
+      .or(`title.ilike.%${needle.replace(/[%,()]/g, " ")}%,source.ilike.%${needle.replace(/[%,()]/g, " ")}%,url.ilike.%${needle.replace(/[%,()]/g, " ")}%`)
+      .order("deadline", { ascending: true, nullsFirst: false })
+      .limit(100);
+    setBusy(false);
+    setSearched(true);
+    if (queryError) {
+      setError(queryError.message);
+      return;
+    }
+    setEvents((data ?? []) as ManagedEvent[]);
+    setSelected(new Set());
+  }
 
   function toggle(id: number) {
     const next = new Set(selected);
@@ -122,43 +142,46 @@ export default function AdminEvents({ events: initial }: { events: ManagedEvent[
     router.refresh();
   }
 
-  async function reload() {
-    setBusy(true);
-    const { data } = await browserClient()
-      .from("events")
-      .select(COLUMNS)
-      .order("deadline", { ascending: true, nullsFirst: false })
-      .limit(500);
-    setEvents((data ?? []) as ManagedEvent[]);
-    setBusy(false);
-  }
-
   return (
     <>
       {error && <div className="msg error">{error}</div>}
       {message && <div className="msg ok">{message}</div>}
 
-      <div className="tabletools">
+      <form className="tabletools" onSubmit={search}>
         <input
           type="search"
           className="adminsearch"
-          placeholder="Filter by title, source or link..."
+          placeholder={`Search ${total} events by title, source or link...`}
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
         />
-        <button
-          type="button"
-          className="minibtn danger"
-          disabled={!selected.size || busy}
-          onClick={deleteSelected}
-        >
-          {busy ? "Working..." : `Delete selected${selected.size ? ` (${selected.size})` : ""}`}
+        <button type="submit" className="minibtn" disabled={busy || !filter.trim()}>
+          {busy ? "Searching..." : "Search"}
         </button>
-        <button type="button" className="minibtn" onClick={reload} disabled={busy}>
-          Reload
-        </button>
-      </div>
+        {searched && (
+          <button
+            type="button"
+            className="minibtn danger"
+            disabled={!selected.size || busy}
+            onClick={deleteSelected}
+          >
+            {`Delete selected${selected.size ? ` (${selected.size})` : ""}`}
+          </button>
+        )}
+        {searched && (
+          <button
+            type="button"
+            className="minibtn"
+            onClick={() => { setEvents([]); setSearched(false); setFilter(""); setSelected(new Set()); }}
+          >
+            Clear
+          </button>
+        )}
+      </form>
 
+      {!searched ? (
+        <p className="empty">Search above to find an event to edit or remove.</p>
+      ) : (
       <div className="tablewrap">
         <table className="table">
           <thead>
@@ -229,12 +252,13 @@ export default function AdminEvents({ events: initial }: { events: ManagedEvent[
             ))}
             {!rows.length && (
               <tr>
-                <td colSpan={6}>No events{needle ? " match that filter" : " yet"}.</td>
+                <td colSpan={6}>Nothing matched that search.</td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
+      )}
     </>
   );
 }

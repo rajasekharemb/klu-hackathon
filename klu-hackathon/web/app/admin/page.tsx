@@ -37,36 +37,28 @@ export default async function AdminPage() {
   // functions refuse it too - hiding a button is not a permission.
   const isOwner = canManage(me?.role);
 
-  const [studentsResult, runsResult, eventsResult, manageResult, regsResult] = await Promise.all([
-    isOwner
-      ? supabase.from("profiles").select("*").order("created_at", { ascending: false }).limit(500)
-      : Promise.resolve({ data: [] as Profile[] }),
-    supabase.from("refresh_runs").select("*").order("ran_at", { ascending: false }).limit(10),
-    supabase.from("events").select("kind, tracker_status, poster_status, source"),
-    // Owner only: the list used for deleting an event or correcting its link.
-    isOwner
-      ? supabase
-          .from("events")
-          .select("id,title,kind,source,deadline,url,registration_url,recommended")
-          .order("deadline", { ascending: true, nullsFirst: false })
-          .limit(500)
-      : Promise.resolve({ data: [] as ManagedEvent[] }),
-    // Runs as its owner so student names resolve even though a plain admin cannot
-    // read the profiles table; it checks is_admin() for itself.
-    supabase.rpc("admin_registrations"),
-  ]);
+  const [accountsCount, adminsCount, eventsCount, hiringCount, runsResult, regsResult, statsResult] =
+    await Promise.all([
+      // Counts only - the tables below are searched, not listed, so none of these
+      // pull rows the page is never going to show.
+      supabase.from("profiles").select("id", { count: "exact", head: true }),
+      supabase.from("profiles").select("id", { count: "exact", head: true }).in("role", ["admin", "owner"]),
+      supabase.from("events").select("id", { count: "exact", head: true }),
+      supabase.from("events").select("id", { count: "exact", head: true }).eq("kind", "hiring"),
+      supabase.from("refresh_runs").select("*").order("ran_at", { ascending: false }).limit(10),
+      // Confirmed registrations only; a search in the panel goes wider.
+      supabase.rpc("admin_registrations", { p_search: null, p_confirmed_only: true, p_limit: 200 }),
+      supabase.rpc("admin_event_stats"),
+    ]);
 
-  const students = (studentsResult.data ?? []) as Profile[];
+  const totalAccounts = accountsCount.count ?? 0;
+  const totalAdmins = adminsCount.count ?? 0;
+  const totalEvents = eventsCount.count ?? 0;
+  const totalHiring = hiringCount.count ?? 0;
   const runs = (runsResult.data ?? []) as Run[];
-  const events = eventsResult.data ?? [];
-  const managedEvents = (manageResult.data ?? []) as ManagedEvent[];
   const registrations = (regsResult.data ?? []) as Registration[];
+  const sourceStats = (statsResult.data ?? []) as Array<{ source: string; total: number }>;
 
-  const bySource = events.reduce<Record<string, number>>((acc, event) => {
-    const key = (event.source as string) || "unknown";
-    acc[key] = (acc[key] ?? 0) + 1;
-    return acc;
-  }, {});
   const lastRun = runs[0];
   const staleHours = lastRun ? (Date.now() - new Date(lastRun.ran_at).getTime()) / 3_600_000 : Infinity;
 
@@ -93,17 +85,14 @@ export default async function AdminPage() {
         <div className="stats">
           {isOwner && (
             <>
-              <div className="stat"><b>{students.length}</b><span>Accounts</span></div>
-              <div className="stat">
-                <b>{students.filter((s) => s.role === "admin" || s.role === "owner").length}</b>
-                <span>Admins</span>
-              </div>
+              <div className="stat"><b>{totalAccounts}</b><span>Accounts</span></div>
+              <div className="stat"><b>{totalAdmins}</b><span>Admins</span></div>
             </>
           )}
-          <div className="stat"><b>{events.length}</b><span>Events</span></div>
-          <div className="stat"><b>{events.filter((e) => e.kind === "hiring").length}</b><span>Hiring</span></div>
-          <div className="stat"><b>{registrations.length}</b><span>Registrations</span></div>
-          <div className="stat"><b>{registrations.filter((r) => r.confirmed).length}</b><span>Confirmed</span></div>
+          <div className="stat"><b>{totalEvents}</b><span>Events</span></div>
+          <div className="stat"><b>{totalHiring}</b><span>Hiring</span></div>
+          <div className="stat"><b>{registrations.length}</b><span>Confirmed</span></div>
+          
         </div>
 
         {staleHours > 30 && (
@@ -132,7 +121,7 @@ export default async function AdminPage() {
       {isOwner && (
         <div className="band">
           <div className="bandhead">
-            <h3>Manage events <span className="count">{managedEvents.length}</span></h3>
+            <h3>Manage events <span className="count">{totalEvents}</span></h3>
           </div>
           <p className="sub tablenote">
             Remove events that should not be listed, or correct a link that has moved -
@@ -140,18 +129,17 @@ export default async function AdminPage() {
             An event the nightly job still finds will reappear tomorrow; to keep it out for good,
             take it down at the source or leave it recommended-off.
           </p>
-          <AdminEvents events={managedEvents} />
+          <AdminEvents total={totalEvents} />
         </div>
       )}
 
       <div className="band">
         <div className="bandhead">
-          <h3>Who registered for what <span className="count">{registrations.length}</span></h3>
+          <h3>Confirmed registrations <span className="count">{registrations.length}</span></h3>
         </div>
         <p className="sub tablenote">
-          Recorded when a student clicks <b>Register Now</b>, which opens the event&apos;s own site.
-          So this shows they went to register; <b>Confirmed</b> is set only when the student presses
-          &quot;I registered&quot; afterwards.
+          Students who pressed &quot;I registered&quot; after filling the KLU form. Clicks that were
+          never confirmed are not listed - search by roll number, name or event to see those too.
           {!isOwner && " This list is read-only - only the owner can remove records."}
         </p>
         <AdminRegistrations registrations={registrations} canEdit={isOwner} />
@@ -160,14 +148,14 @@ export default async function AdminPage() {
       {isOwner && (
         <div className="band">
           <div className="bandhead">
-            <h3>Accounts <span className="count">{students.length}</span></h3>
+            <h3>Accounts <span className="count">{totalAccounts}</span></h3>
           </div>
           <p className="sub tablenote">
             Only you can see this section. <b>Make admin</b> gives someone the registrations,
             refresh log and event figures - but not this table, so they cannot promote anyone
             else or remove you. Your own owner account cannot be changed or deleted here.
           </p>
-          <AdminStudents students={students} meId={user.id} />
+          <AdminStudents total={totalAccounts} adminCount={totalAdmins} meId={user.id} />
         </div>
       )}
 
@@ -207,11 +195,9 @@ export default async function AdminPage() {
           <h3>Events by source</h3>
         </div>
         <div className="tags">
-          {Object.entries(bySource)
-            .sort((a, b) => b[1] - a[1])
-            .map(([source, count]) => (
-              <span className="tag" key={source}>{source}: <b>{count}</b></span>
-            ))}
+          {sourceStats.map((row) => (
+            <span className="tag" key={row.source}>{row.source}: <b>{row.total}</b></span>
+          ))}
         </div>
       </div>
 

@@ -21,27 +21,46 @@ export type Registration = {
 };
 
 export default function AdminRegistrations({
-  registrations,
+  registrations: initial,
   canEdit,
 }: {
   registrations: Registration[];
   canEdit: boolean;
 }) {
   const router = useRouter();
+  const [registrations, setRegistrations] = useState<Registration[]>(initial);
+  const [searched, setSearched] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("");
 
-  const needle = filter.trim().toLowerCase();
-  const rows = needle
-    ? registrations.filter((r) =>
-        [r.student_name, r.roll_no, r.student_email, r.event_title, r.source]
-          .join(" ")
-          .toLowerCase()
-          .includes(needle),
-      )
-    : registrations;
+  const rows = registrations;
+
+  /**
+   * Confirmed entries are what the page shows. A search goes wider and includes
+   * the ones a student clicked but never confirmed - the filtering happens in the
+   * database, so unconfirmed rows are not sent and then hidden.
+   */
+  async function search(formEvent?: React.FormEvent) {
+    formEvent?.preventDefault();
+    setBusy(true);
+    setError("");
+    const needle = filter.trim();
+    const { data, error: queryError } = await browserClient().rpc("admin_registrations", {
+      p_search: needle || null,
+      p_confirmed_only: !needle,
+      p_limit: 200,
+    });
+    setBusy(false);
+    setSearched(Boolean(needle));
+    if (queryError) {
+      setError(`${queryError.message} - has migration 012 been run?`);
+      return;
+    }
+    setRegistrations((data ?? []) as Registration[]);
+    setSelected(new Set());
+  }
 
   const allShownSelected = rows.length > 0 && rows.every((r) => selected.has(r.id));
 
@@ -79,6 +98,7 @@ export default function AdminRegistrations({
       return;
     }
     setSelected(new Set());
+    await search();
     router.refresh();
   }
 
@@ -86,14 +106,26 @@ export default function AdminRegistrations({
     <>
       {error && <div className="msg error">{error}</div>}
 
-      <div className="tabletools">
+      <form className="tabletools" onSubmit={search}>
         <input
           type="search"
           className="adminsearch"
-          placeholder="Filter by student, roll number or event..."
+          placeholder="Search any registration by roll number, name or event..."
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
         />
+        <button type="submit" className="minibtn" disabled={busy}>
+          {busy ? "Searching..." : "Search"}
+        </button>
+        {searched && (
+          <button
+            type="button"
+            className="minibtn"
+            onClick={() => { setFilter(""); setSearched(false); setRegistrations(initial); }}
+          >
+            Show confirmed only
+          </button>
+        )}
         {canEdit && (
           <button
             type="button"
@@ -104,7 +136,7 @@ export default function AdminRegistrations({
             {busy ? "Deleting..." : `Delete selected${selected.size ? ` (${selected.size})` : ""}`}
           </button>
         )}
-      </div>
+      </form>
 
       <div className="tablewrap">
         <table className="table">
@@ -160,7 +192,9 @@ export default function AdminRegistrations({
               </tr>
             ))}
             {!rows.length && (
-              <tr><td colSpan={canEdit ? 8 : 7}>No registrations{needle ? " match that filter" : " yet"}.</td></tr>
+              <tr><td colSpan={canEdit ? 8 : 7}>
+                  {searched ? "Nothing matched that search." : "No confirmed registrations yet."}
+                </td></tr>
             )}
           </tbody>
         </table>
