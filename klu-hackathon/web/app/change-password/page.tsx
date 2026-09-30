@@ -4,7 +4,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { browserClient } from "@/lib/supabase/client";
 
-const DEFAULT_PASSWORD = "Kl_hackathon";
+// Every password handed out in bulk. None of them may be "changed" back to itself,
+// which would leave the account on a password other people know.
+const SHARED_PASSWORDS = ["Kl_hackathon", "klu123"];
 
 export default function ChangePasswordPage() {
   const router = useRouter();
@@ -25,8 +27,8 @@ export default function ChangePasswordPage() {
       setError("The two passwords do not match.");
       return;
     }
-    if (password === DEFAULT_PASSWORD) {
-      setError("That is the shared default password. Pick one only you know.");
+    if (SHARED_PASSWORDS.some((shared) => shared.toLowerCase() === password.toLowerCase())) {
+      setError("That is a shared password everyone was given. Pick one only you know.");
       return;
     }
 

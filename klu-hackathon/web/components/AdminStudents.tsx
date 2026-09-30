@@ -65,6 +65,44 @@ export default function AdminStudents({
     );
   }
 
+  async function resetPassword(student: Profile) {
+    const who = student.full_name || student.email;
+    if (
+      !confirm(
+        `Reset the password for ${who}?
+
+` +
+          "They will sign in with the shared temporary password and must set their own " +
+          "before they can use the portal. Tell them straight away - until they change it, " +
+          "anyone who knows that password and their email can sign in as them.",
+      )
+    )
+      return;
+
+    setBusy(`reset-${student.id}`);
+    setMessage("");
+    setError("");
+    try {
+      const response = await fetch("/api/admin/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ studentId: student.id }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setError(data.error ?? "Could not reset that password.");
+      } else {
+        setMessage(
+          `${who} can now sign in with: ${data.password} - they must change it before the portal lets them in.` +
+            (data.warning ? ` (${data.warning})` : ""),
+        );
+      }
+    } catch {
+      setError("Could not reach the server.");
+    }
+    setBusy(null);
+  }
+
   function remove(student: Profile) {
     const who = student.full_name || student.email;
     if (!confirm(`Delete ${who}?\n\nTheir login and all their registrations are removed. This cannot be undone.`)) return;
@@ -181,6 +219,21 @@ export default function AdminStudents({
                             : isAdmin
                               ? "Make student"
                               : "Make admin"}
+                      </button>
+                      <button
+                        type="button"
+                        className="minibtn"
+                        disabled={busy !== null || locked}
+                        title={
+                          isOwnerRow
+                            ? "An owner account cannot be reset here"
+                            : isMe
+                              ? "Use Change password for your own account"
+                              : "Set this account back to the temporary password"
+                        }
+                        onClick={() => resetPassword(student)}
+                      >
+                        {busy === `reset-${student.id}` ? "..." : "Reset password"}
                       </button>
                       <button
                         type="button"
