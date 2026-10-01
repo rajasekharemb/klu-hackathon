@@ -8,7 +8,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 import { canSeeAdminArea } from "@/lib/roles";
 
-const PUBLIC_PATHS = ["/login", "/signup", "/auth", "/_next", "/favicon.ico"];
+const PUBLIC_PATHS = ["/login", "/signup", "/forgot-password", "/auth", "/_next", "/favicon.ico"];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

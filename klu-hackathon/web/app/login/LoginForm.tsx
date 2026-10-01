@@ -88,6 +88,9 @@ export default function LoginForm() {
       </button>
 
       <p className="altline">
+        <Link href="/forgot-password">Forgot your password?</Link>
+      </p>
+      <p className="altline">
         No account yet? <Link href="/signup">Register with your college email</Link>
       </p>
     </form>
