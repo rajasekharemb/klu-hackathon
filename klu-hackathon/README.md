@@ -75,10 +75,16 @@ the `ALLOWED_DOMAINS` array in `web/app/signup/page.tsx`. Keep the two in step.
 |---|---|---|
 | Project URL | Vercel + GitHub | yes |
 | `anon` / public key | Vercel | yes - RLS is what protects the data |
-| `service_role` key | **GitHub secrets only** | **no - it bypasses RLS entirely** |
+| `service_role` key | **GitHub secrets, and Vercel as `SUPABASE_SERVICE_ROLE_KEY`** | **no - it bypasses RLS entirely** |
 
-Never put the `service_role` key in `web/`, in `.env.local`, or in any file you commit.
-Anyone holding it can read and change every row in your database.
+Never put the `service_role` key in a file you commit. Anyone holding it can read and change
+every row in your database.
+
+It does belong in Vercel, because the owner's **Reset password** button calls Supabase's admin
+API from the server. Add it as `SUPABASE_SERVICE_ROLE_KEY` under **Settings -> Environments ->
+Production**, and never with a `NEXT_PUBLIC_` prefix - that prefix tells Next.js to inline the
+value into the JavaScript the browser downloads. Redeploy afterwards, because env vars are read
+at build time.
 
 ---
 
@@ -274,6 +280,86 @@ student. Create them shortly before they are needed, not weeks ahead.
 
 ---
 
+## Password resets
+
+Two routes exist and they fail in different ways, so keep both.
+
+### 1. The owner button - no email involved
+
+Admin page -> search the student -> **Reset password**. It sets `klu123` and flags the account,
+so `middleware.ts` holds that student on `/change-password` until they choose their own. This is
+the dependable path: use it when the student is in front of you or on a call.
+
+It calls `/api/admin/reset-password`, which needs `SUPABASE_SERVICE_ROLE_KEY` in Vercel. If the
+button reports "SUPABASE_SERVICE_ROLE_KEY is not set on the server", either the variable is
+missing or the project was not redeployed after it was added.
+
+### 2. Self-service - `/forgot-password`
+
+The student enters their address and Supabase emails a one-hour link, which lands on
+`/auth/callback` and forwards to `/change-password`.
+
+The page shows the same message whether or not the address has an account. That is deliberate -
+"no such account" would let anyone test which roll numbers are registered - but it also means the
+screen tells you nothing while debugging. Read **Supabase -> Logs -> Auth Logs** instead.
+
+### Why the college mailbox cannot send it
+
+`students.progression@kluniversity.in` is unusable. Microsoft permanently disabled Basic
+authentication for SMTP AUTH in Exchange Online - 100% rejection from 30 April 2026, and it
+cannot be re-enabled. Supabase only speaks username/password SMTP, so that door is shut.
+
+Sending *as* `@kluniversity.in` through any third party is blocked as well:
+
+```
+_dmarc.kluniversity.in   v=DMARC1; p=reject; pct=100
+kluniversity.in          v=spf1 include:spf.protection.outlook.com -all
+```
+
+`p=reject` means mail claiming that domain which did not come through Microsoft is discarded by
+the receiving server. Brevo refuses to add the sender for precisely this reason.
+
+### Current setup - a dedicated Gmail account
+
+**Supabase -> Authentication -> Emails -> SMTP Settings**
+
+| Field | Value |
+|---|---|
+| Host | `smtp.gmail.com` |
+| Port | `587` |
+| Username | `kluhackathons@gmail.com` |
+| Password | a 16-character Google **app password**, spaces stripped |
+| Sender email | the same address - if it differs from the username, Gmail rewrites the From header |
+| Sender name | `KLU Hackathon Portal` |
+
+App passwords only exist once 2-Step Verification is on. Gmail allows roughly 500 sends a day.
+
+Raise **Authentication -> Rate Limits -> Rate limit for sending emails** as well. The default is
+**2 per hour**, which looks exactly like a broken mail configuration.
+
+### The quarantine trap
+
+Mail sent this way lands in Gmail's Sent folder and is then **quarantined by Exchange Online
+Protection** before reaching any `@kluniversity.in` inbox. It is caught by the anti-spam policy
+rather than delivered to Junk, so it does not appear anywhere in Outlook. An unfamiliar external
+Gmail sender with no reputation, subject "Reset your password", body consisting of a single link,
+is the shape of a phishing message.
+
+Quarantined mail is at <https://security.microsoft.com/quarantine>; releasing it there also lets
+you report the false positive.
+
+This hits every student, not one mailbox, and the fix needs KLU IT:
+
+- **Short term** - add `kluhackathons@gmail.com` to the Tenant Allow/Block List as an allowed
+  sender (Defender -> Policies & rules -> Threat policies -> Tenant Allow/Block List).
+- **Long term** - authenticate `kluniversity.in` with a transactional provider such as Brevo by
+  adding its ownership and DKIM records. The existing SPF record does **not** need to change:
+  DMARC passes if either SPF or DKIM aligns, which makes it an add-only request.
+
+Until one of those is done, treat the owner button as the working reset path.
+
+---
+
 ## Running the site locally
 
 ```bash
@@ -304,6 +390,9 @@ npm run dev
 | Build fails on Vercel | Root Directory is not `klu-hackathon/web`. |
 | Workflow fails at "Publish to Supabase" | `SUPABASE_SERVICE_KEY` is missing, or it is the anon key by mistake. |
 | Stuck on the change-password screen | `must_change_password` is still true. It clears once the new password saves. |
+| "Reset password" says the service key is not set | `SUPABASE_SERVICE_ROLE_KEY` is missing in Vercel, or the project was not redeployed after adding it. |
+| Reset email never arrives | Check the Gmail Sent folder first. If it is there, Exchange quarantined it - see Password resets. |
+| Reset email bounces or never sends | Sender email must equal the SMTP username, and the rate limit defaults to 2 per hour. |
 | Everything says NEW every morning | The tracker memory cache was not restored. Check the cache steps in the workflow log. |
 
 `refresh_runs` records every nightly run, and the dashboard footer shows the last one, so a
