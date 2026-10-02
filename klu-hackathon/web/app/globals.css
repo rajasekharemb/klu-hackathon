@@ -28,7 +28,7 @@ a { color: inherit; text-decoration: none; }
 /* ------------------------------------------------- masthead (two tiers, Y25) */
 .masthead { position: sticky; top: 0; z-index: 30; }
 .topbar { background: var(--navy-deep); border-bottom: 2px solid var(--gold); color: #fff; }
-.topinner { max-width: 1320px; margin: auto; padding: 11px 24px; display: flex;
+.topinner { max-width: 1320px; margin: auto; padding: 9px 24px; display: flex;
   align-items: center; gap: 18px; flex-wrap: wrap; }
 .klmark { display: flex; align-items: center; gap: 11px; }
 .klglyph { width: 38px; height: 34px; border-radius: 4px; background: var(--gold);
@@ -50,7 +50,7 @@ a { color: inherit; text-decoration: none; }
 
 .subbar { background: linear-gradient(90deg, var(--navy-mid) 0%, var(--navy) 100%);
   color: rgba(255, 255, 255, .85); font-size: 12.5px; border-bottom: 1px solid rgba(212, 166, 79, .2); }
-.subinner { max-width: 1320px; margin: auto; padding: 8px 24px; display: flex;
+.subinner { max-width: 1320px; margin: auto; padding: 6px 24px; display: flex;
   align-items: center; gap: 12px; flex-wrap: wrap; }
 .crumb { letter-spacing: .3px; }
 .crumbsep { color: rgba(212, 166, 79, .7); }
@@ -60,19 +60,19 @@ a { color: inherit; text-decoration: none; }
 .who { margin-left: auto; color: rgba(255, 255, 255, .55); font-size: 11.5px; letter-spacing: .3px; }
 
 /* ------------------------------------------------------------------ masthead */
-.hero { max-width: 1320px; margin: auto; padding: 46px 24px 14px; text-align: center; }
+.hero { max-width: 1320px; margin: auto; padding: 18px 24px 6px; text-align: center; }
 /* 1.16 rather than 1.08: Fraunces italic descenders in "across India" sit low
    enough to touch the blurb at the tighter leading. */
 h1 { font-family: var(--display); font-weight: 500; color: var(--navy-deep);
-  font-size: clamp(1.9rem, 4.4vw, 3rem); line-height: 1.16; letter-spacing: -.02em;
-  margin: 0 0 20px; }
+  font-size: clamp(1.5rem, 3vw, 2.1rem); line-height: 1.18; letter-spacing: -.02em;
+  margin: 0 0 14px; }
 h1 em { font-style: italic; color: var(--gold-deep); }
-.sub { color: var(--ink-2); max-width: 980px; margin: 0 auto; font-size: .97rem; line-height: 1.68; }
+.sub { color: var(--ink-2); max-width: 900px; margin: 0 auto; font-size: .89rem; line-height: 1.6; }
 
 /* The figures read as one line of running text, the way the Y25 masthead does -
    four boxed tiles competed with the headline for attention. */
-.mastmeta { display: flex; align-items: center; justify-content: center; gap: 16px; flex-wrap: wrap;
-  margin: 28px auto 2px; padding-top: 24px; border-top: 1px solid var(--line); max-width: 980px; }
+.mastmeta { display: flex; align-items: center; justify-content: center; gap: 15px; flex-wrap: wrap;
+  margin: 12px auto 2px; padding-top: 12px; border-top: 1px solid var(--line); max-width: 900px; }
 .metaitem { display: inline-flex; align-items: baseline; gap: 7px; font-size: .78rem;
   color: var(--muted); letter-spacing: .4px; text-transform: uppercase; }
 .metaitem strong { font-family: var(--display); font-size: 1.12rem; font-weight: 600;
@@ -85,7 +85,7 @@ h1 em { font-style: italic; color: var(--gold-deep); }
    header simply covered the search box on the way past. */
 .filterbar { position: sticky; top: var(--masthead-h); z-index: 20;
   border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
-  background: var(--surface-2); box-shadow: var(--shadow-sm); margin-top: 30px; }
+  background: var(--surface-2); box-shadow: var(--shadow-sm); margin-top: 18px; }
 .filterinner { max-width: 1320px; margin: auto; padding: 15px 24px 17px;
   display: flex; flex-wrap: wrap; align-items: flex-start; gap: 14px 44px; }
 .filtersearch { flex: 1 1 100%; }
@@ -123,11 +123,12 @@ h1 em { font-style: italic; color: var(--gold-deep); }
 .modebtn.active::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--gold); }
 
 /* --------------------------------------------------------------------- board */
-.boardwrap { max-width: 1320px; margin: auto; padding: 30px 24px 0;
+.boardwrap { max-width: 1320px; margin: auto; padding: 14px 24px 0;
   scroll-margin-top: calc(var(--masthead-h) + 120px); }
-.boardhead { display: flex; align-items: flex-end; gap: 18px; flex-wrap: wrap; }
+.boardhead { display: flex; align-items: flex-end; gap: 18px; flex-wrap: wrap;
+  padding-bottom: 11px; margin-bottom: 14px; border-bottom: 1px solid var(--line); }
 .boardhead h2 { font-family: var(--display); font-weight: 500; color: var(--navy-deep);
-  font-size: clamp(1.4rem, 2.6vw, 2rem); letter-spacing: -.01em; margin: 0 0 5px;
+  font-size: clamp(1.2rem, 2vw, 1.55rem); letter-spacing: -.01em; margin: 0 0 3px;
   display: flex; align-items: center; gap: 12px; }
 .boardhead p { color: var(--muted); margin: 0; max-width: 640px; font-size: .86rem; }
 .gcount { font-family: var(--sans); font-size: .72rem; color: var(--navy-deep); background: var(--gold-soft);
@@ -135,8 +136,7 @@ h1 em { font-style: italic; color: var(--gold-deep); }
 .sortpick { margin-left: auto; display: flex; align-items: center; gap: 10px; }
 .sortpick > span { font-size: .66rem; font-weight: 600; letter-spacing: 1px;
   text-transform: uppercase; color: var(--muted); }
-.pagenote { color: var(--muted); font-size: .8rem; letter-spacing: .3px; margin: 20px 0 14px;
-  padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+.pagenote { color: var(--muted); font-size: .76rem; letter-spacing: .3px; margin: 5px 0 0; }
 .pagenote b { color: var(--navy-deep); font-weight: 600; }
 
 .band { max-width: 1320px; margin: auto; padding: 22px 24px 8px; }

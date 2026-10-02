@@ -507,6 +507,12 @@ export default function EventBoard({
               {heading} <span className="gcount">{total}</span>
             </h2>
             <p>{note}</p>
+            {events.length > 0 && (
+              <p className="pagenote">
+                Showing <b>{firstOnPage}</b>&ndash;<b>{lastOnPage}</b> of <b>{total}</b> &middot; page{" "}
+                {page + 1} of {pageCount}
+              </p>
+            )}
           </div>
           <div className="sortpick">
             <span>Sort</span>
@@ -526,13 +532,6 @@ export default function EventBoard({
         </div>
 
         {error && <div className="msg error">Could not load events: {error}</div>}
-
-        {events.length > 0 && (
-          <p className="pagenote">
-            Showing <b>{firstOnPage}</b>&ndash;<b>{lastOnPage}</b> of <b>{total}</b> &middot; page{" "}
-            {page + 1} of {pageCount}
-          </p>
-        )}
 
         <div className={`grid${loading ? " busy" : ""}`}>
           {events.map((event) => (

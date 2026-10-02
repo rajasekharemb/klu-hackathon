@@ -90,9 +90,8 @@ export default async function DashboardPage() {
           Hackathons &amp; competitions <em>across India</em>
         </h1>
         <p className="sub">
-          Refreshed every day at 2:00 AM, and anything past its registration deadline drops off
-          by itself. Twelve to a page, best matches first - always confirm the details on the
-          official page before you apply.
+          Refreshed daily at 2:00 AM; closed events drop off by themselves. Always confirm the
+          details on the official page before you apply.
         </p>
         <div className="mastmeta">
           <span className="metaitem"><strong>{totalEvents - hiringCount}</strong><span>hackathons</span></span>
