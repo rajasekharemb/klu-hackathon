@@ -295,11 +295,17 @@ per student per event is enforced by `unique (student_id, event_id)`, and `confi
 keeps the first `confirmed_at` rather than replacing it, so the admin report shows when the
 student actually entered.
 
-**Registrations are deleted 15 days after the event finishes.** `purge_old_registrations()` runs
-at the end of the nightly job, using `end_date`, else `start_date`, else `deadline`; rows whose
-event has no date at all are left alone. Events are upserted and never deleted, so without this
-the table grows for ever - but it does mean the record of who entered what is not a permanent
-archive. Export anything the college needs to keep before the fortnight is up.
+**Nothing is ever deleted.** A student stops *seeing* a registration 15 days after the event
+finishes; the row stays. The admin and owner read `event_registrations` through
+`admin_registrations()`, which has no date window, so the full history is theirs however old the
+event is - that log is the college's record of who entered what, and this is the only place it
+exists.
+
+The student side is the `my_registrations` view, scoped to `auth.uid()` and to events that
+finished less than 15 days ago (`end_date`, else `start_date`, else `deadline`; an event with no
+date at all is kept). It is a separate view rather than a filter on `upcoming_events` because
+that one ends at the registration deadline - a student would lose sight of an event the day after
+entries closed, which is exactly when they want to check what they entered.
 
 ---
 

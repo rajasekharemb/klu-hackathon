@@ -249,12 +249,14 @@ export default function EventBoard({
   registrations = [],
   savedEvents = [],
   canRecommend = false,
+  myCount = 0,
 }: {
   initialEvents: EventRow[];
   total: number;
   registrations?: Registration[];
   savedEvents?: Saved[];
   canRecommend?: boolean;
+  myCount?: number;
 }) {
   const [events, setEvents] = useState<EventRow[]>(initialEvents);
   const [total, setTotal] = useState(initialTotal);
@@ -277,26 +279,13 @@ export default function EventBoard({
   );
   const savedMap = useMemo(() => new Map(savedEvents.map((s) => [s.event_id, s])), [savedEvents]);
 
-  /**
-   * "My registrations" means the ones confirmed with "I registered - fill the KLU
-   * form", not every card whose Register Now was clicked. Opening an event's page
-   * is logged too - that is what the admin report counts as interest - but a look
-   * is not an entry, and counting looks made the chip read 151 for a student who
-   * had actually entered a handful.
-   */
-  const confirmedRegistrations = useMemo(
-    () => registrations.filter((r) => r.confirmed),
-    [registrations],
-  );
-
   // "My registrations" and "Saved" used to filter whatever happened to be loaded,
   // so an event on page three simply did not appear. The ids go to the query
   // instead, which returns the right set however far down the list they sit.
   const scopeIds = useMemo(() => {
-    if (scope === "mine") return confirmedRegistrations.map((r) => r.event_id);
     if (scope === "saved") return savedEvents.map((s) => s.event_id);
     return null;
-  }, [scope, confirmedRegistrations, savedEvents]);
+  }, [scope, savedEvents]);
 
   /**
    * One page at a time, filtered and sorted in the database. With 400+ events,
@@ -311,7 +300,16 @@ export default function EventBoard({
       setLoading(true);
       setError("");
 
-      let query = browserClient().from("upcoming_events").select(SELECT_COLUMNS, { count: "exact" });
+      /**
+       * "My registrations" reads its own view rather than filtering the listing.
+       * upcoming_events stops at the registration deadline, so a student lost
+       * sight of an event the day after entries closed - exactly when they want
+       * to check what they entered. my_registrations keeps it for 15 days after
+       * the event finishes, and is already scoped to the signed-in student, so
+       * it needs no id filter.
+       */
+      const table = scope === "mine" ? "my_registrations" : "upcoming_events";
+      let query = browserClient().from(table).select(SELECT_COLUMNS, { count: "exact" });
 
       // Recommended events stay pinned above the rest whichever sort is chosen -
       // that is the whole point of an admin recommending one.
@@ -360,7 +358,7 @@ export default function EventBoard({
       setTotal(count ?? 0);
       setLoading(false);
     },
-    [kind, status, term, scopeIds, sort, size],
+    [kind, status, term, scopeIds, scope, sort, size],
   );
 
   function goTo(next: number) {
@@ -503,8 +501,7 @@ export default function EventBoard({
                 className={`pill ${scope === "mine" ? "active" : ""}`}
                 onClick={() => setScope(scope === "mine" ? "all" : "mine")}
               >
-                My registrations
-                {confirmedRegistrations.length ? ` (${confirmedRegistrations.length})` : ""}
+                My registrations{myCount ? ` (${myCount})` : ""}
               </button>
               <button
                 type="button"

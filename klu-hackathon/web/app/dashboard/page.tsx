@@ -51,6 +51,13 @@ export default async function DashboardPage() {
     .gt("expires_at", new Date().toISOString());
   const savedEvents = (savedRows ?? []) as Saved[];
 
+  // What "My registrations" will show: confirmed entries whose event finished less
+  // than 15 days ago. Counting every confirmed row instead would promise a longer
+  // list than the filter delivers.
+  const { count: myCount } = await supabase
+    .from("my_registrations")
+    .select("id", { count: "exact", head: true });
+
   // Counted across every open event, not just the page that was sent.
   const [hiringCount, freshCount] = await Promise.all([
     supabase.from("upcoming_events").select("id", { count: "exact", head: true }).eq("kind", "hiring"),
@@ -118,6 +125,7 @@ export default async function DashboardPage() {
         total={totalEvents}
         registrations={registrations}
         savedEvents={savedEvents}
+        myCount={myCount ?? 0}
         canRecommend={canSeeAdminArea(profile?.role)}
       />
 
