@@ -357,6 +357,26 @@ export default function EventBoard({
     document.getElementById("board")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  /**
+   * The filter strip pins directly under the masthead when the page scrolls, so
+   * the offset has to be the masthead's real height - it changes when the action
+   * pills wrap to a second line, and a hard-coded number would either leave a gap
+   * or let the bar slide under the header.
+   */
+  useEffect(() => {
+    const head = document.querySelector(".masthead");
+    if (!head) return;
+    const apply = () =>
+      document.documentElement.style.setProperty(
+        "--masthead-h",
+        `${Math.round(head.getBoundingClientRect().height)}px`,
+      );
+    apply();
+    const observer = new ResizeObserver(apply);
+    observer.observe(head);
+    return () => observer.disconnect();
+  }, []);
+
   // The header links pick a section. They also clear any scope filter: asking for
   // "Hackathons" while "My registrations" is on would otherwise show an empty page
   // and look like the link was broken.
