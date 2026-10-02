@@ -78,18 +78,23 @@ export default async function DashboardPage() {
       </div>
 
       <div className="hero">
-        <h1>Hackathons &amp; competitions in India</h1>
+        <h1>
+          Hackathons &amp; competitions <em>across India</em>, open to you right now.
+        </h1>
         <p className="sub">
           Refreshed automatically at 2:00 AM every day. Only events you can still register for
           are shown - anything past its registration deadline drops off by itself. Ten to a page,
           best matches first. Always confirm dates and eligibility on the official page before
           applying.
         </p>
-        <div className="stats">
-          <div className="stat"><b>{totalEvents - hiringCount}</b><span>Hackathons</span></div>
-          <div className="stat"><b>{hiringCount}</b><span>Hiring challenges</span></div>
-          <div className="stat"><b>{freshCount}</b><span>New</span></div>
-          <div className="stat"><b>{totalEvents}</b><span>Open now</span></div>
+        <div className="mastmeta">
+          <span className="metaitem"><strong>{totalEvents - hiringCount}</strong><span>hackathons</span></span>
+          <span className="metadot">&middot;</span>
+          <span className="metaitem"><strong>{hiringCount}</strong><span>hiring challenges</span></span>
+          <span className="metadot">&middot;</span>
+          <span className="metaitem"><strong>{freshCount}</strong><span>found this week</span></span>
+          <span className="metadot">&middot;</span>
+          <span className="metaitem"><strong>{totalEvents}</strong><span>open now</span></span>
         </div>
       </div>
 

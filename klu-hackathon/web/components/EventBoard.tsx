@@ -53,6 +53,18 @@ const SCOPE_LABELS: Record<string, string> = {
   unknown: "Unconfirmed",
 };
 
+const KIND_PILLS: Array<[Kind, string]> = [
+  ["all", "Both"],
+  ["open", "Hackathons"],
+  ["hiring", "Hiring challenges"],
+];
+
+const STATUS_PILLS: Array<[Status, string]> = [
+  ["all", "Everything"],
+  ["NEW", "New only"],
+  ["OLD", "Seen before"],
+];
+
 const SORT_LABELS: Record<Sort, string> = {
   best: "Best match",
   soon: "Closing soon",
@@ -401,54 +413,72 @@ export default function EventBoard({
 
   return (
     <>
-      <div className="toolbar">
-        <input
-          type="search"
-          placeholder="Search by name, college, city, organiser..."
-          value={term}
-          onChange={(e) => setTerm(e.target.value)}
-        />
-        <span className="group">
-          {(["all", "open", "hiring"] as const).map((value) => (
-            <button
-              key={value}
-              className={`chipbtn ${kind === value ? "on" : ""}`}
-              onClick={() => setKind(value)}
-              type="button"
-            >
-              {value === "all" ? "Both" : value === "open" ? "Hackathons" : "Hiring only"}
-            </button>
-          ))}
-        </span>
-        <span className="group">
-          {(["all", "NEW", "OLD"] as const).map((value) => (
-            <button
-              key={value}
-              className={`chipbtn ${status === value ? "on" : ""}`}
-              onClick={() => setStatus(value)}
-              type="button"
-            >
-              {value === "all" ? "All" : value === "NEW" ? "New only" : "Old only"}
-            </button>
-          ))}
-        </span>
-        <span className="group">
-          <button
-            className={`chipbtn ${scope === "mine" ? "on" : ""}`}
-            onClick={() => setScope(scope === "mine" ? "all" : "mine")}
-            type="button"
-          >
-            My registrations{registrations.length ? ` (${registrations.length})` : ""}
-          </button>
-          <button
-            className={`chipbtn ${scope === "saved" ? "on" : ""}`}
-            onClick={() => setScope(scope === "saved" ? "all" : "saved")}
-            type="button"
-          >
-            Saved for later{savedEvents.length ? ` (${savedEvents.length})` : ""}
-          </button>
-        </span>
-      </div>
+      {/* The filters sit in their own strip under the masthead, labelled a row at a
+          time, the way the Y25 site presents "Choose engineering discipline" - the
+          same controls in one wrapping line read as a wall of buttons. */}
+      <section className="filterbar">
+        <div className="filterinner">
+          <input
+            type="search"
+            className="filtersearch"
+            placeholder="Search by name, college, city, organiser..."
+            value={term}
+            onChange={(e) => setTerm(e.target.value)}
+          />
+
+          <div className="filterrow">
+            <span className="filterlabel">Choose a list</span>
+            <div className="pills">
+              {KIND_PILLS.map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={`pill ${kind === value ? "active" : ""}`}
+                  onClick={() => setKind(value)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="filterrow">
+            <span className="filterlabel">When found</span>
+            <div className="pills">
+              {STATUS_PILLS.map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={`pill ${status === value ? "active" : ""}`}
+                  onClick={() => setStatus(value)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="filterrow">
+            <span className="filterlabel">Your lists</span>
+            <div className="pills">
+              <button
+                type="button"
+                className={`pill ${scope === "mine" ? "active" : ""}`}
+                onClick={() => setScope(scope === "mine" ? "all" : "mine")}
+              >
+                My registrations{registrations.length ? ` (${registrations.length})` : ""}
+              </button>
+              <button
+                type="button"
+                className={`pill ${scope === "saved" ? "active" : ""}`}
+                onClick={() => setScope(scope === "saved" ? "all" : "saved")}
+              >
+                Saved for later{savedEvents.length ? ` (${savedEvents.length})` : ""}
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <div className="boardwrap" id="board">
         <div className="boardhead">
@@ -458,16 +488,21 @@ export default function EventBoard({
             </h2>
             <p>{note}</p>
           </div>
-          <label className="sortpick">
+          <div className="sortpick">
             <span>Sort</span>
-            <select value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
+            <div className="modetoggle">
               {(Object.keys(SORT_LABELS) as Sort[]).map((value) => (
-                <option key={value} value={value}>
+                <button
+                  key={value}
+                  type="button"
+                  className={`modebtn ${sort === value ? "active" : ""}`}
+                  onClick={() => setSort(value)}
+                >
                   {SORT_LABELS[value]}
-                </option>
+                </button>
               ))}
-            </select>
-          </label>
+            </div>
+          </div>
         </div>
 
         {error && <div className="msg error">Could not load events: {error}</div>}
