@@ -277,14 +277,26 @@ export default function EventBoard({
   );
   const savedMap = useMemo(() => new Map(savedEvents.map((s) => [s.event_id, s])), [savedEvents]);
 
+  /**
+   * "My registrations" means the ones confirmed with "I registered - fill the KLU
+   * form", not every card whose Register Now was clicked. Opening an event's page
+   * is logged too - that is what the admin report counts as interest - but a look
+   * is not an entry, and counting looks made the chip read 151 for a student who
+   * had actually entered a handful.
+   */
+  const confirmedRegistrations = useMemo(
+    () => registrations.filter((r) => r.confirmed),
+    [registrations],
+  );
+
   // "My registrations" and "Saved" used to filter whatever happened to be loaded,
   // so an event on page three simply did not appear. The ids go to the query
   // instead, which returns the right set however far down the list they sit.
   const scopeIds = useMemo(() => {
-    if (scope === "mine") return registrations.map((r) => r.event_id);
+    if (scope === "mine") return confirmedRegistrations.map((r) => r.event_id);
     if (scope === "saved") return savedEvents.map((s) => s.event_id);
     return null;
-  }, [scope, registrations, savedEvents]);
+  }, [scope, confirmedRegistrations, savedEvents]);
 
   /**
    * One page at a time, filtered and sorted in the database. With 400+ events,
@@ -491,7 +503,8 @@ export default function EventBoard({
                 className={`pill ${scope === "mine" ? "active" : ""}`}
                 onClick={() => setScope(scope === "mine" ? "all" : "mine")}
               >
-                My registrations{registrations.length ? ` (${registrations.length})` : ""}
+                My registrations
+                {confirmedRegistrations.length ? ` (${confirmedRegistrations.length})` : ""}
               </button>
               <button
                 type="button"
@@ -553,7 +566,7 @@ export default function EventBoard({
         {!events.length && !loading && (
           <p className="empty">
             {scope === "mine"
-              ? "You have not registered for anything yet."
+              ? "Nothing here yet. Press “I registered - fill the KLU form” on a card once you have entered, and it will appear here."
               : scope === "saved"
                 ? "Nothing saved yet - press “Save for later” on a card to keep it here for 30 days."
                 : term.trim() || kind !== "all" || status !== "all"
