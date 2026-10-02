@@ -106,6 +106,11 @@ h1 { font-size: clamp(1.6rem, 4vw, 2.4rem); margin: .1em 0 .25em; letter-spacing
 .msg.info { background: #eef2fb; color: #42618f; }
 .altline { margin-top: 18px; font-size: .88rem; color: var(--muted); text-align: center; }
 .altline a { color: var(--orange); font-weight: 700; }
+/* A button that has to read as a link - "Send it again" must be a button, because
+   it performs an action rather than going anywhere. */
+.linklike { background: none; border: 0; padding: 0; font: inherit; cursor: pointer;
+            color: var(--orange); font-weight: 700; }
+.linklike:disabled { color: var(--muted); cursor: default; }
 .hint { font-size: .78rem; color: var(--muted); margin-top: -8px; margin-bottom: 14px; }
 
 /* ------------------------------------------------------------ admin tables */

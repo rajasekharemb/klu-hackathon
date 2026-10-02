@@ -3,10 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { browserClient } from "@/lib/supabase/client";
-
-// Every password handed out in bulk. None of them may be "changed" back to itself,
-// which would leave the account on a password other people know.
-const SHARED_PASSWORDS = ["Kl_hackathon", "klu123"];
+import { passwordProblem } from "@/lib/password";
 
 export default function ChangePasswordPage() {
   const router = useRouter();
@@ -19,16 +16,9 @@ export default function ChangePasswordPage() {
     formEvent.preventDefault();
     setError("");
 
-    if (password.length < 8) {
-      setError("Choose a password of at least 8 characters.");
-      return;
-    }
-    if (password !== confirm) {
-      setError("The two passwords do not match.");
-      return;
-    }
-    if (SHARED_PASSWORDS.some((shared) => shared.toLowerCase() === password.toLowerCase())) {
-      setError("That is a shared password everyone was given. Pick one only you know.");
+    const problem = passwordProblem(password, confirm);
+    if (problem) {
+      setError(problem);
       return;
     }
 

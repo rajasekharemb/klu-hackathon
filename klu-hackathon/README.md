@@ -296,12 +296,34 @@ missing or the project was not redeployed after it was added.
 
 ### 2. Self-service - `/forgot-password`
 
-The student enters their address and Supabase emails a one-hour link, which lands on
-`/auth/callback` and forwards to `/change-password`.
+Three steps on one screen: the student enters their address, types the six-digit code we email,
+then sets a new password. The code is valid for an hour.
 
-The page shows the same message whether or not the address has an account. That is deliberate -
+**A code rather than a link, deliberately.** Exchange Online quarantines a message from an
+unfamiliar outside sender whose body is a single "reset your password" link - that is the shape
+of credential phishing - and the student never sees it, not even in Junk. A six-digit number with
+no link in the body does not trip the same filter.
+
+This needs the email template to carry the code. **Supabase -> Authentication -> Emails ->
+Reset Password**, and use `{{ .Token }}`:
+
+```html
+<h2>Password reset</h2>
+<p>Your verification code is:</p>
+<p style="font-size:28px;font-weight:bold;letter-spacing:4px">{{ .Token }}</p>
+<p>Enter it on the reset page. It expires in one hour.</p>
+<p>If you did not ask for this, you can ignore this email.</p>
+```
+
+Keep the body free of links. The default template ships `{{ .ConfirmationURL }}`, which is the
+version that gets quarantined.
+
+Step one reports the same thing whether or not the address has an account. That is deliberate -
 "no such account" would let anyone test which roll numbers are registered - but it also means the
 screen tells you nothing while debugging. Read **Supabase -> Logs -> Auth Logs** instead.
+
+`/auth/callback` still exists and still handles link-style recovery, so a template containing both
+a code and a link works either way.
 
 ### Why the college mailbox cannot send it
 
