@@ -84,7 +84,9 @@ h1 em { font-style: italic; color: var(--gold-deep); }
 .filterrow { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
 .filterlabel { font-size: .66rem; font-weight: 600; letter-spacing: 1px; text-transform: uppercase;
   color: var(--muted); }
-.pills { display: flex; gap: 8px; flex-wrap: wrap; }
+.pills { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.pilldiv { width: 1px; align-self: stretch; min-height: 24px; background: var(--line-strong);
+  margin: 0 5px; }
 
 /* The branch chips from the Y25 page: square-ish, quiet when idle, navy with a
    gold dot when chosen. */

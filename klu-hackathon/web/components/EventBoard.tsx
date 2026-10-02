@@ -427,7 +427,7 @@ export default function EventBoard({
           />
 
           <div className="filterrow">
-            <span className="filterlabel">Choose a list</span>
+            <span className="filterlabel">Choose what to show</span>
             <div className="pills">
               {KIND_PILLS.map(([value, label]) => (
                 <button
@@ -439,12 +439,11 @@ export default function EventBoard({
                   {label}
                 </button>
               ))}
-            </div>
-          </div>
 
-          <div className="filterrow">
-            <span className="filterlabel">When found</span>
-            <div className="pills">
+              {/* The eight chips are three separate questions - what, how recent,
+                  and whose - so a hairline keeps them apart without costing a row. */}
+              <span className="pilldiv" aria-hidden="true" />
+
               {STATUS_PILLS.map(([value, label]) => (
                 <button
                   key={value}
@@ -455,12 +454,9 @@ export default function EventBoard({
                   {label}
                 </button>
               ))}
-            </div>
-          </div>
 
-          <div className="filterrow">
-            <span className="filterlabel">Your lists</span>
-            <div className="pills">
+              <span className="pilldiv" aria-hidden="true" />
+
               <button
                 type="button"
                 className={`pill ${scope === "mine" ? "active" : ""}`}
