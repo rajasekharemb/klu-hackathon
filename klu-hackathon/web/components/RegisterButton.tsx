@@ -36,6 +36,7 @@ export default function RegisterButton({
   const [clicked, setClicked] = useState(initiallyRegistered);
   const [confirmed, setConfirmed] = useState(initiallyConfirmed);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   async function onRegister() {
     setClicked(true); // optimistic: the student has visibly acted
@@ -50,19 +51,21 @@ export default function RegisterButton({
   async function setConfirmedTo(next: boolean) {
     setConfirmed(next);
     setSaving(true);
-    const supabase = browserClient();
-    const { data } = await supabase.auth.getUser();
-    if (data.user) {
-      // Make sure a row exists even if the click was never logged, so ticking this
-      // first still records which event it was for.
-      await supabase.rpc("record_registration_click", { p_event_id: eventId });
-      await supabase
-        .from("event_registrations")
-        .update({ confirmed: next, confirmed_at: next ? new Date().toISOString() : null })
-        .eq("student_id", data.user.id)
-        .eq("event_id", eventId);
-    }
+    setError("");
+
+    // One call, which creates the row if the student never opened the event page
+    // and keeps the original confirmed_at if they press this again. Pressing it
+    // twice reopens the form; it does not make a second registration.
+    const { error: rpcError } = await browserClient().rpc("confirm_registration", {
+      p_event_id: eventId,
+      p_on: next,
+    });
+
     setSaving(false);
+    if (rpcError) {
+      setConfirmed(!next); // put the button back - nothing was saved
+      setError(`${rpcError.message} - has migration 015 been run?`);
+    }
   }
 
   return (
@@ -84,7 +87,7 @@ export default function RegisterButton({
           className="btn confirmbtn done"
           onClick={() => setConfirmedTo(false)}
           disabled={saving}
-          title="Click to undo if you did not actually register"
+          title={error || "Click to undo if you did not actually register"}
         >
           {saving ? "Saving..." : "\u2713 Registered"}
         </button>
@@ -95,7 +98,7 @@ export default function RegisterButton({
           target="_blank"
           rel="noopener noreferrer"
           onClick={() => setConfirmedTo(true)}
-          title="Opens the KLU registration form - fill it in to complete your entry"
+          title={error || "Opens the KLU registration form - fill it in to complete your entry"}
         >
           I registered - fill the KLU form
         </a>

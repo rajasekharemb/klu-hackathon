@@ -280,6 +280,29 @@ student. Create them shortly before they are needed, not weeks ahead.
 
 ---
 
+## What counts as a registration
+
+**Register Now** opens the event's own site and logs the click. **I registered - fill the KLU
+form** is the one that counts: it sets `confirmed`, and that is what the student's "My
+registrations" filter and the admin's Confirmed registrations table both read.
+
+The click log is deliberate - the Google form cannot know which event a student came from, so
+the pairing has to be kept here - but a visit is not an entry. Counting visits is why that chip
+once read 151 for a student who had entered a handful.
+
+Pressing "I registered" again reopens the form; it does not make a second registration. One row
+per student per event is enforced by `unique (student_id, event_id)`, and `confirm_registration()`
+keeps the first `confirmed_at` rather than replacing it, so the admin report shows when the
+student actually entered.
+
+**Registrations are deleted 15 days after the event finishes.** `purge_old_registrations()` runs
+at the end of the nightly job, using `end_date`, else `start_date`, else `deadline`; rows whose
+event has no date at all are left alone. Events are upserted and never deleted, so without this
+the table grows for ever - but it does mean the record of who entered what is not a permanent
+archive. Export anything the college needs to keep before the fortnight is up.
+
+---
+
 ## Password resets
 
 Two routes exist and they fail in different ways, so keep both.

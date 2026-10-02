@@ -144,6 +144,19 @@ def main(argv: list[str]) -> int:
     else:
         print(f"  (could not clear expired saves: HTTP {purge.status_code})")
 
+    # Registrations for events that finished more than 15 days ago. Events are
+    # upserted and never deleted, so these rows would otherwise accumulate for ever.
+    old_regs = requests.post(
+        f"{url}/rest/v1/rpc/purge_old_registrations",
+        headers={"apikey": key, "Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+        data="{}",
+        timeout=TIMEOUT,
+    )
+    if old_regs.status_code < 300:
+        print(f"  cleared {old_regs.text.strip() or 0} registrations for long-finished events")
+    else:
+        print(f"  (could not clear old registrations: HTTP {old_regs.status_code})")
+
     log_response = post(url, key, "refresh_runs", log, "return=minimal")
     if log_response.status_code >= 300:
         print(f"  (could not write refresh_runs: HTTP {log_response.status_code})")
