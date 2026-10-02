@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import RegisterButton from "./RegisterButton";
 import RecommendButton from "./RecommendButton";
 import SaveButton from "./SaveButton";
+import Pager from "./Pager";
 import { SECTION_EVENT } from "./SectionNav";
 import { browserClient } from "@/lib/supabase/client";
 import { PAGE_SIZE } from "@/lib/config";
@@ -39,12 +40,23 @@ export type EventRow = {
   recommend_note?: string | null;
 };
 
+type Kind = "all" | "open" | "hiring";
+type Status = "all" | "NEW" | "OLD";
+type Scope = "all" | "mine" | "saved";
+type Sort = "best" | "soon" | "new";
+
 const SCOPE_LABELS: Record<string, string> = {
   global: "Global",
   national: "National (India)",
   regional: "Regional / State",
   campus: "Campus",
   unknown: "Unconfirmed",
+};
+
+const SORT_LABELS: Record<Sort, string> = {
+  best: "Best match",
+  soon: "Closing soon",
+  new: "Newest found",
 };
 
 function today() {
@@ -54,6 +66,13 @@ function today() {
 
 function asDate(value: string | null) {
   return value ? new Date(`${value}T00:00:00`) : null;
+}
+
+/** A date as "5 Oct 2026". The raw 2026-10-05 reads like a serial number on a card. */
+function pretty(value: string | null) {
+  const date = asDate(value);
+  if (!date) return "TBA";
+  return date.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 }
 
 /** Matches _registration_state() in the Python tracker so both views agree. */
@@ -67,12 +86,18 @@ function registrationState(event: EventRow): [string, string] {
   if (start && start <= now && now <= (end ?? start)) return ["LIVE", "live"];
   if (closing) {
     const days = Math.round((closing.getTime() - now.getTime()) / 86_400_000);
-    return [days <= 7 ? `CLOSES IN ${days} DAY${days === 1 ? "" : "S"}` : "REGISTERING", "open"];
+    return [days <= 7 ? `${days} DAY${days === 1 ? "" : "S"} LEFT` : "REGISTERING", "open"];
   }
   if (!start && !end) return ["DATES TBA", "tba"];
   return ["UPCOMING", "open"];
 }
 
+/**
+ * A card shows the four things a student decides on - what it is, when it closes,
+ * where it runs and what it pays - and keeps the rest behind "More details".
+ * Printing all nine fields made every card tall enough that four of them filled
+ * the screen, which is what made the board tiring to read.
+ */
 function EventCard({
   event,
   registration,
@@ -84,20 +109,20 @@ function EventCard({
   saved?: Saved;
   canRecommend: boolean;
 }) {
+  const [open, setOpen] = useState(false);
   const [state, stateClass] = registrationState(event);
   const isNew = event.tracker_status === "NEW";
   const hasPoster =
     event.poster_url && (event.poster_status === "ok" || event.poster_status === "thumbnail");
-  const tags = (event.domains?.length ? event.domains : event.categories ?? []).slice(0, 4);
+  const tags = (event.domains?.length ? event.domains : event.categories ?? []).slice(0, 3);
   const venue = event.location || (event.mode === "online" ? "Virtual" : "Venue to be announced");
-
   const recommended = Boolean(event.recommended);
 
   return (
     <article className={`card${recommended ? " recommended" : ""}`}>
       <div className="media">
         <span className={`flag ${isNew ? "new" : "old"}`}>{isNew ? "NEW" : "OLD"}</span>
-        {recommended && <span className="flag rec">★ RECOMMENDED</span>}
+        {recommended && <span className="flag rec">&#9733; PICK</span>}
         {event.kind === "hiring" && <span className="flag hiring">HIRING</span>}
         {hasPoster ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -111,14 +136,11 @@ function EventCard({
 
       <div className="body">
         <div className="venue">{venue.toUpperCase()}</div>
-        <h4>{event.title}</h4>
-        {recommended && event.recommend_note && (
-          <p className="recnote">{event.recommend_note}</p>
-        )}
+        <h4 title={event.title}>{event.title}</h4>
+        {recommended && event.recommend_note && <p className="recnote">{event.recommend_note}</p>}
 
         <div className="priceline">
           <div className={`prize ${event.prize ? "" : "muted"}`}>{event.prize || "Prize TBA"}</div>
-          {event.participants && <span className="venue">{event.participants} registered</span>}
           <span className={`state ${stateClass}`}>{state}</span>
         </div>
 
@@ -126,39 +148,61 @@ function EventCard({
           <div className="row">
             <span className="k">Dates</span>
             <span className="v">
-              <b>{event.start_date || "TBA"}</b> &rarr; <b>{event.end_date || "TBA"}</b>
+              {pretty(event.start_date)} &rarr; {pretty(event.end_date)}
             </span>
           </div>
-          {event.deadline && (
-            <div className="row">
-              <span className="k">Register by</span>
-              <span className="v deadline">{event.deadline}</span>
-            </div>
+          <div className="row">
+            <span className="k">Register by</span>
+            <span className={`v ${event.deadline ? "deadline" : ""}`}>{pretty(event.deadline)}</span>
+          </div>
+
+          {open && (
+            <>
+              <div className="row">
+                <span className="k">Mode</span>
+                <span className="v">
+                  {(event.mode ?? "unknown").replace(/^\w/, (c) => c.toUpperCase())} &middot;{" "}
+                  {SCOPE_LABELS[event.scope ?? "unknown"] ?? event.scope}
+                </span>
+              </div>
+              <div className="row">
+                <span className="k">Eligible</span>
+                <span className="v">
+                  {event.eligibility || "Not stated - check the official page"}
+                </span>
+              </div>
+              {event.organizer && (
+                <div className="row">
+                  <span className="k">Host</span>
+                  <span className="v">{event.organizer}</span>
+                </div>
+              )}
+              {event.participants && (
+                <div className="row">
+                  <span className="k">Signed up</span>
+                  <span className="v">{event.participants}</span>
+                </div>
+              )}
+              <div className="row">
+                <span className="k">Source</span>
+                <span className="v">{event.source}</span>
+              </div>
+              {tags.length > 0 && (
+                <div className="tags">
+                  {tags.map((tag) => (
+                    <span className="tag" key={tag}>
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </>
           )}
-          <div className="row">
-            <span className="k">Mode</span>
-            <span className="v">
-              {(event.mode ?? "unknown").replace(/^\w/, (c) => c.toUpperCase())} &middot;{" "}
-              {SCOPE_LABELS[event.scope ?? "unknown"] ?? event.scope}
-            </span>
-          </div>
-          <div className="row">
-            <span className="k">Eligible</span>
-            <span className="v">{event.eligibility || "Not stated - check the official page"}</span>
-          </div>
-          <div className="row">
-            <span className="k">Source</span>
-            <span className="v">{event.source}</span>
-          </div>
         </div>
 
-        <div className="tags">
-          {tags.map((tag) => (
-            <span className="tag" key={tag}>
-              {tag}
-            </span>
-          ))}
-        </div>
+        <button type="button" className="morelink" onClick={() => setOpen(!open)}>
+          {open ? "Less" : "More details"}
+        </button>
 
         <div className="actions">
           <a className="btn ghost" href={event.url ?? "#"} target="_blank" rel="noopener noreferrer">
@@ -182,100 +226,14 @@ function EventCard({
   );
 }
 
-function Band({
-  title,
-  blurb,
-  events,
-  registrations,
-  savedMap,
-  canRecommend,
-}: {
-  title: string;
-  blurb: string;
-  events: EventRow[];
-  registrations: Map<number, Registration>;
-  savedMap: Map<number, Saved>;
-  canRecommend: boolean;
-}) {
-  if (!events.length) return null;
-  return (
-    <section className="band">
-      {title && (
-        <div className="bandhead">
-          <h3>
-            {title} <span className="count">{events.length}</span>
-          </h3>
-        </div>
-      )}
-      {blurb && <p className="sub tablenote">{blurb}</p>}
-      <div className="grid">
-        {events.map((event) => (
-          <EventCard
-            event={event}
-            registration={registrations.get(event.id)}
-            saved={savedMap.get(event.id)}
-            canRecommend={canRecommend}
-            key={event.id}
-          />
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function Group({
-  anchor,
-  heading,
-  note,
-  tone,
-  events,
-  registrations,
-  savedMap,
-  canRecommend,
-}: {
-  anchor: string;
-  heading: string;
-  note: string;
-  tone: string;
-  events: EventRow[];
-  registrations: Map<number, Registration>;
-  savedMap: Map<number, Saved>;
-  canRecommend: boolean;
-}) {
-  if (!events.length) return null;
-  // One list, best first. It used to split into "New" and "Previously seen", but
-  // OLD only means the tracker saw the event on an earlier run - not that this
-  // student has - so the second heading suggested something it did not mean and
-  // pushed perfectly open events below the fold. The NEW flag on each card still
-  // marks the recent ones, and the New only / Old only chips still narrow the list.
-  return (
-    <div className="groupwrap" id={anchor}>
-      <div className={`grouphead ${tone}`}>
-        <h2>
-          {heading} <span className="gcount">{events.length}</span>
-        </h2>
-        <p>{note}</p>
-      </div>
-      <Band
-        title=""
-        blurb=""
-        events={events}
-        registrations={registrations}
-        savedMap={savedMap}
-        canRecommend={canRecommend}
-      />
-    </div>
-  );
-}
-
 const SELECT_COLUMNS =
   "id,key,title,source,kind,scope,url,registration_url,start_date,end_date,deadline,mode," +
   "location,organizer,prize,eligibility,participants,domains,categories,poster_url," +
-  "poster_status,tracker_status,score";
+  "poster_status,tracker_status,score,recommended,recommend_note";
 
 export default function EventBoard({
   initialEvents,
-  total,
+  total: initialTotal,
   registrations = [],
   savedEvents = [],
   canRecommend = false,
@@ -287,14 +245,19 @@ export default function EventBoard({
   canRecommend?: boolean;
 }) {
   const [events, setEvents] = useState<EventRow[]>(initialEvents);
+  const [total, setTotal] = useState(initialTotal);
+  const [page, setPage] = useState(0);
   const [term, setTerm] = useState("");
-  const [kind, setKind] = useState<"all" | "open" | "hiring">("all");
-  const [status, setStatus] = useState<"all" | "NEW" | "OLD">("all");
-  const [scope, setScope] = useState<"all" | "mine" | "saved">("all");
+  const [kind, setKind] = useState<Kind>("all");
+  const [status, setStatus] = useState<Status>("all");
+  const [scope, setScope] = useState<Scope>("all");
+  const [sort, setSort] = useState<Sort>("best");
   const [loading, setLoading] = useState(false);
-  const [exhausted, setExhausted] = useState(initialEvents.length >= total);
   const [error, setError] = useState("");
   const requestId = useRef(0);
+
+  const size = Number(PAGE_SIZE) || 10;
+  const pageCount = Math.max(1, Math.ceil(total / size));
 
   const registrationMap = useMemo(
     () => new Map(registrations.map((r) => [r.event_id, r])),
@@ -312,26 +275,36 @@ export default function EventBoard({
   }, [scope, registrations, savedEvents]);
 
   /**
-   * Filtering and searching run on the server, not over an array in the browser.
-   * With 400+ events, sending them all on every visit was the largest consumer of
-   * the database's egress allowance; the page now asks for 60 at a time, best
-   * scored first, and fetches more only when the student asks.
+   * One page at a time, filtered and sorted in the database. With 400+ events,
+   * sending them all on every visit was the largest draw on the egress allowance,
+   * and the count comes back alongside the rows, so the pager knows how many pages
+   * there are without a second query.
    */
   const fetchPage = useCallback(
-    async (from: number, replace: boolean) => {
+    async (which: number) => {
       const ticket = requestId.current + 1;
       requestId.current = ticket;
-      const size = Number(PAGE_SIZE) || 40;
       setLoading(true);
       setError("");
 
-      let query = browserClient()
-        .from("upcoming_events")
-        .select(SELECT_COLUMNS)
-        .order("recommended", { ascending: false })
-        .order("score", { ascending: false })
-        .order("deadline", { ascending: true })
-        .range(from, from + size - 1);
+      let query = browserClient().from("upcoming_events").select(SELECT_COLUMNS, { count: "exact" });
+
+      // Recommended events stay pinned above the rest whichever sort is chosen -
+      // that is the whole point of an admin recommending one.
+      query = query.order("recommended", { ascending: false });
+      if (sort === "soon") {
+        query = query.order("deadline", { ascending: true, nullsFirst: false });
+      } else if (sort === "new") {
+        // "NEW" sorts before "OLD" alphabetically, so ascending puts the freshly
+        // found events first.
+        query = query
+          .order("tracker_status", { ascending: true })
+          .order("score", { ascending: false });
+      } else {
+        query = query
+          .order("score", { ascending: false })
+          .order("deadline", { ascending: true, nullsFirst: false });
+      }
 
       if (kind !== "all") query = query.eq("kind", kind);
       if (status !== "all") query = query.eq("tracker_status", status);
@@ -347,7 +320,10 @@ export default function EventBoard({
         );
       }
 
-      const { data, error: queryError } = await query;
+      const { data, count, error: queryError } = await query.range(
+        which * size,
+        which * size + size - 1,
+      );
       // A slow earlier request must not overwrite a newer one's results.
       if (requestId.current !== ticket) return;
 
@@ -356,13 +332,18 @@ export default function EventBoard({
         setLoading(false);
         return;
       }
-      const rows = (data ?? []) as unknown as EventRow[];
-      setEvents((current) => (replace ? rows : [...current, ...rows]));
-      setExhausted(rows.length < size);
+      setEvents((data ?? []) as unknown as EventRow[]);
+      setTotal(count ?? 0);
       setLoading(false);
     },
-    [kind, status, term, scopeIds],
+    [kind, status, term, scopeIds, sort, size],
   );
+
+  function goTo(next: number) {
+    setPage(next);
+    fetchPage(next);
+    document.getElementById("board")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
   // The header links pick a section. They also clear any scope filter: asking for
   // "Hackathons" while "My registrations" is on would otherwise show an empty page
@@ -375,32 +356,48 @@ export default function EventBoard({
       setKind(which);
       setTerm("");
       requestAnimationFrame(() =>
-        document.getElementById(which === "hiring" ? "hiring" : "hackathons")
-          ?.scrollIntoView({ behavior: "smooth", block: "start" }),
+        document.getElementById("board")?.scrollIntoView({ behavior: "smooth", block: "start" }),
       );
     }
     window.addEventListener(SECTION_EVENT, onSection);
     return () => window.removeEventListener(SECTION_EVENT, onSection);
   }, []);
 
-  // Re-query when a filter or the search text changes. The first render is skipped,
-  // because it would throw away the rows the server already rendered.
+  // Re-query when a filter, the sort or the search text changes, always from page
+  // one - page 5 of the previous result set means nothing in the new one. The first
+  // render is skipped, because it would throw away the rows the server rendered.
   const firstRender = useRef(true);
   useEffect(() => {
     if (firstRender.current) {
       firstRender.current = false;
       // Safety net: if the server rendered nothing while the count says there is
       // something, fetch the first page here rather than showing a blank board.
-      if (initialEvents.length === 0 && total > 0) fetchPage(0, true);
+      if (initialEvents.length === 0 && initialTotal > 0) fetchPage(0);
       return;
     }
-    const timer = setTimeout(() => fetchPage(0, true), 250); // debounce typing
+    setPage(0);
+    const timer = setTimeout(() => fetchPage(0), 250); // debounce typing
     return () => clearTimeout(timer);
-  }, [fetchPage, initialEvents.length, total]);
+  }, [fetchPage, initialEvents.length, initialTotal]);
 
-  const shown = events;
-  const hackathons = shown.filter((e) => e.kind !== "hiring");
-  const hiring = shown.filter((e) => e.kind === "hiring");
+  const heading =
+    scope === "mine"
+      ? "My registrations"
+      : scope === "saved"
+        ? "Saved for later"
+        : kind === "hiring"
+          ? "Hiring challenges"
+          : kind === "open"
+            ? "Hackathons & competitions"
+            : "Hackathons & hiring challenges";
+
+  const note =
+    kind === "hiring"
+      ? "Run by companies to recruit. You compete for a job, often against working professionals - check the experience requirements first."
+      : "Open contests you enter to build something and win a prize.";
+
+  const firstOnPage = total === 0 ? 0 : page * size + 1;
+  const lastOnPage = Math.min(total, page * size + events.length);
 
   return (
     <>
@@ -453,59 +450,60 @@ export default function EventBoard({
         </span>
       </div>
 
-      {error && (
-        <div className="band">
-          <div className="msg error">Could not load events: {error}</div>
+      <div className="boardwrap" id="board">
+        <div className="boardhead">
+          <div>
+            <h2>
+              {heading} <span className="gcount">{total}</span>
+            </h2>
+            <p>{note}</p>
+          </div>
+          <label className="sortpick">
+            <span>Sort</span>
+            <select value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
+              {(Object.keys(SORT_LABELS) as Sort[]).map((value) => (
+                <option key={value} value={value}>
+                  {SORT_LABELS[value]}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
-      )}
 
-      <Group
-        anchor="hackathons"
-        heading="Hackathons & competitions"
-        note="Open contests you enter to build something and win a prize. Best matches first."
-        tone="tone-open"
-        events={hackathons}
-        registrations={registrationMap}
-        savedMap={savedMap}
-        canRecommend={canRecommend}
-      />
-      <Group
-        anchor="hiring"
-        heading="Hiring challenges"
-        note="Run by companies to recruit. You compete for a job, often against working professionals - check the experience requirements first."
-        tone="tone-hiring"
-        events={hiring}
-        registrations={registrationMap}
-        savedMap={savedMap}
-        canRecommend={canRecommend}
-      />
+        {error && <div className="msg error">Could not load events: {error}</div>}
 
-      {!shown.length && !loading && (
-        <p className="empty">
-          {scope === "mine"
-            ? "You have not registered for anything yet."
-            : scope === "saved"
-              ? "Nothing saved yet - press “Save for later” on a card to keep it here for 30 days."
-              : term.trim() || kind !== "all" || status !== "all"
-                ? "Nothing matches that search."
-                : "No events are open for registration right now."}
-        </p>
-      )}
-
-      <div className="morewrap">
-        {!exhausted && scope === "all" && (
-          <button
-            className="btn primary showmore"
-            type="button"
-            disabled={loading}
-            onClick={() => fetchPage(events.length, false)}
-          >
-            {loading ? "Loading..." : `Show ${Math.min(PAGE_SIZE, total - events.length)} more — ${events.length} of ${total} shown`}
-          </button>
+        {events.length > 0 && (
+          <p className="pagenote">
+            Showing <b>{firstOnPage}</b>&ndash;<b>{lastOnPage}</b> of <b>{total}</b> &middot; page{" "}
+            {page + 1} of {pageCount}
+          </p>
         )}
-        {exhausted && shown.length > 0 && (
-          <p className="empty">That is everything &mdash; {shown.length} shown.</p>
+
+        <div className={`grid${loading ? " busy" : ""}`}>
+          {events.map((event) => (
+            <EventCard
+              event={event}
+              registration={registrationMap.get(event.id)}
+              saved={savedMap.get(event.id)}
+              canRecommend={canRecommend}
+              key={event.id}
+            />
+          ))}
+        </div>
+
+        {!events.length && !loading && (
+          <p className="empty">
+            {scope === "mine"
+              ? "You have not registered for anything yet."
+              : scope === "saved"
+                ? "Nothing saved yet - press “Save for later” on a card to keep it here for 30 days."
+                : term.trim() || kind !== "all" || status !== "all"
+                  ? "Nothing matches that search."
+                  : "No events are open for registration right now."}
+          </p>
         )}
+
+        <Pager page={page} pageCount={pageCount} onChange={goTo} busy={loading} label="Event pages" />
       </div>
     </>
   );

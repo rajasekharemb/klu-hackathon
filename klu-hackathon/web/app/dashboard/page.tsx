@@ -12,15 +12,17 @@ export default async function DashboardPage() {
 
   const [{ data: user }, eventsResult, runResult] = await Promise.all([
     supabase.auth.getUser(),
-    // Only the first page, best scored first. The board fetches more on demand -
-    // sending all 400+ on every visit was the biggest draw on the egress allowance.
+    // Only the first page, best scored first. The board pages through the rest on
+    // demand - sending all 400+ on every visit was the biggest draw on the egress
+    // allowance. This ordering has to match the board's default sort, or page one
+    // would change the moment the browser took over.
     supabase
       .from("upcoming_events")
       .select("*", { count: "exact" })
       .order("recommended", { ascending: false })
       .order("score", { ascending: false })
-      .order("deadline", { ascending: true })
-      .range(0, (Number(PAGE_SIZE) || 40) - 1),
+      .order("deadline", { ascending: true, nullsFirst: false })
+      .range(0, (Number(PAGE_SIZE) || 10) - 1),
     supabase.from("refresh_runs").select("*").order("ran_at", { ascending: false }).limit(1),
   ]);
 
@@ -78,10 +80,10 @@ export default async function DashboardPage() {
       <div className="hero">
         <h1>Hackathons &amp; competitions in India</h1>
         <p className="sub">
-          Refreshed automatically at 2:00 AM every day. Only events you can still register for are
-          shown - anything past its registration deadline drops off automatically. Best matches
-          first, with newly found ones flagged. Always confirm dates and eligibility on the
-          official page before applying.
+          Refreshed automatically at 2:00 AM every day. Only events you can still register for
+          are shown - anything past its registration deadline drops off by itself. Ten to a page,
+          best matches first. Always confirm dates and eligibility on the official page before
+          applying.
         </p>
         <div className="stats">
           <div className="stat"><b>{totalEvents - hiringCount}</b><span>Hackathons</span></div>

@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { browserClient } from "@/lib/supabase/client";
+import Pager from "./Pager";
+import { ADMIN_PAGE_SIZE } from "@/lib/config";
 
 export type Registration = {
   id: number;
@@ -36,8 +38,14 @@ export default function AdminRegistrations({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("");
+  const [page, setPage] = useState(0);
 
-  const rows = registrations;
+  // Ten at a time. The whole result set is already in the browser, so paging here
+  // is a slice rather than another round trip - what it buys is a readable table
+  // instead of two hundred rows in one scroll.
+  const size = Number(ADMIN_PAGE_SIZE) || 10;
+  const pageCount = Math.max(1, Math.ceil(registrations.length / size));
+  const rows = registrations.slice(page * size, page * size + size);
 
   /**
    * Confirmed entries are what the page shows. A search goes wider and includes
@@ -62,6 +70,7 @@ export default function AdminRegistrations({
     }
     setRegistrations((data ?? []) as Registration[]);
     setSelected(new Set());
+    setPage(0);
   }
 
   const allShownSelected = rows.length > 0 && rows.every((r) => selected.has(r.id));
@@ -123,7 +132,7 @@ export default function AdminRegistrations({
           <button
             type="button"
             className="minibtn"
-            onClick={() => { setFilter(""); setSearched(false); setRegistrations(initial); }}
+            onClick={() => { setFilter(""); setSearched(false); setRegistrations(initial); setPage(0); }}
           >
             Show confirmed only
           </button>
@@ -139,6 +148,14 @@ export default function AdminRegistrations({
           </button>
         )}
       </form>
+
+      {registrations.length > 0 && (
+        <p className="pagenote">
+          Showing <b>{page * size + 1}</b>&ndash;<b>{Math.min(registrations.length, page * size + rows.length)}</b>{" "}
+          of <b>{registrations.length}</b>
+          {registrations.length >= 200 && " (first 200 - narrow it with a search)"}
+        </p>
+      )}
 
       <div className="tablewrap">
         <table className="table">
@@ -204,6 +221,8 @@ export default function AdminRegistrations({
           </tbody>
         </table>
       </div>
+
+      <Pager page={page} pageCount={pageCount} onChange={setPage} busy={busy} label="Registration pages" />
     </>
   );
 }

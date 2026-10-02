@@ -37,15 +37,30 @@ export default async function AdminPage() {
   // functions refuse it too - hiding a button is not a permission.
   const isOwner = canManage(me?.role);
 
-  const [accountsCount, adminsCount, eventsCount, hiringCount, runsResult, regsResult, statsResult] =
-    await Promise.all([
+  const [
+    accountsCount,
+    adminsCount,
+    eventsCount,
+    hiringCount,
+    confirmedCount,
+    runResult,
+    regsResult,
+    statsResult,
+  ] = await Promise.all([
       // Counts only - the tables below are searched, not listed, so none of these
       // pull rows the page is never going to show.
       supabase.from("profiles").select("id", { count: "exact", head: true }),
       supabase.from("profiles").select("id", { count: "exact", head: true }).in("role", ["admin", "owner"]),
       supabase.from("events").select("id", { count: "exact", head: true }),
       supabase.from("events").select("id", { count: "exact", head: true }).eq("kind", "hiring"),
-      supabase.from("refresh_runs").select("*").order("ran_at", { ascending: false }).limit(10),
+      // The real total, not the length of the page below it - the RPC caps at 200.
+      supabase
+        .from("event_registrations")
+        .select("id", { count: "exact", head: true })
+        .eq("confirmed", true),
+      // Only the most recent run. The older rows were a scrolling log nobody read;
+      // what matters is whether last night worked.
+      supabase.from("refresh_runs").select("*").order("ran_at", { ascending: false }).limit(1),
       // Confirmed registrations only; a search in the panel goes wider.
       supabase.rpc("admin_registrations", { p_search: null, p_confirmed_only: true, p_limit: 200 }),
       supabase.rpc("admin_event_stats"),
@@ -55,14 +70,16 @@ export default async function AdminPage() {
   const totalAdmins = adminsCount.count ?? 0;
   const totalEvents = eventsCount.count ?? 0;
   const totalHiring = hiringCount.count ?? 0;
-  const runs = (runsResult.data ?? []) as Run[];
+  const lastRun = (runResult.data ?? [])[0] as Run | undefined;
+  const totalConfirmed = confirmedCount.count ?? 0;
   const registrations = (regsResult.data ?? []) as Registration[];
   // A failed RPC used to render as "0 confirmed", which reads like real data.
   const registrationsError = regsResult.error?.message ?? "";
   const sourceStats = (statsResult.data ?? []) as Array<{ source: string; total: number }>;
 
-  const lastRun = runs[0];
   const staleHours = lastRun ? (Date.now() - new Date(lastRun.ran_at).getTime()) / 3_600_000 : Infinity;
+  const ranAgo =
+    staleHours < 1 ? "less than an hour ago" : `${Math.round(staleHours)} hours ago`;
 
   return (
     <>
@@ -93,8 +110,7 @@ export default async function AdminPage() {
           )}
           <div className="stat"><b>{totalEvents}</b><span>Events</span></div>
           <div className="stat"><b>{totalHiring}</b><span>Hiring</span></div>
-          <div className="stat"><b>{registrations.length}</b><span>Confirmed</span></div>
-          
+          <div className="stat"><b>{totalConfirmed}</b><span>Confirmed</span></div>
         </div>
 
         {staleHours > 30 && (
@@ -137,7 +153,7 @@ export default async function AdminPage() {
 
       <div className="band">
         <div className="bandhead">
-          <h3>Confirmed registrations <span className="count">{registrations.length}</span></h3>
+          <h3>Confirmed registrations <span className="count">{totalConfirmed}</span></h3>
         </div>
         <p className="sub tablenote">
           Students who pressed &quot;I registered&quot; after filling the KLU form. Clicks that were
@@ -173,31 +189,26 @@ export default async function AdminPage() {
         <div className="bandhead">
           <h3>Nightly refresh</h3>
         </div>
-        <div className="tablewrap">
-          <table className="table">
-            <thead>
-              <tr><th>Ran at</th><th>Events</th><th>New</th><th>Hiring</th><th>Errors</th><th>Result</th></tr>
-            </thead>
-            <tbody>
-              {runs.map((run) => (
-                <tr key={run.id}>
-                  <td>{new Date(run.ran_at).toLocaleString("en-IN")}</td>
-                  <td>{run.events_total ?? "-"}</td>
-                  <td>{run.events_new ?? "-"}</td>
-                  <td>{run.events_hiring ?? "-"}</td>
-                  <td>{run.errors ?? 0}</td>
-                  <td>
-                    <span className={`state ${run.ok ? "live" : "closed"}`}>{run.ok ? "OK" : "FAILED"}</span>
-                    {run.note && <div className="venue">{run.note.slice(0, 120)}</div>}
-                  </td>
-                </tr>
-              ))}
-              {!runs.length && (
-                <tr><td colSpan={6}>No refresh has run yet. Trigger the workflow from GitHub Actions.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        {lastRun ? (
+          <div className="runcard">
+            <div className="runhead">
+              <span className={`state ${lastRun.ok ? "live" : "closed"}`}>
+                {lastRun.ok ? "OK" : "FAILED"}
+              </span>
+              <b>{new Date(lastRun.ran_at).toLocaleString("en-IN")}</b>
+              <span className="venue">{ranAgo}</span>
+            </div>
+            <div className="runstats">
+              <div><b>{lastRun.events_total ?? "-"}</b><span>Events</span></div>
+              <div><b>{lastRun.events_new ?? "-"}</b><span>New</span></div>
+              <div><b>{lastRun.events_hiring ?? "-"}</b><span>Hiring</span></div>
+              <div><b>{lastRun.errors ?? 0}</b><span>Errors</span></div>
+            </div>
+            {lastRun.note && <p className="sub tablenote">{lastRun.note}</p>}
+          </div>
+        ) : (
+          <p className="empty">No refresh has run yet. Trigger the workflow from GitHub Actions.</p>
+        )}
       </div>
 
       <div className="band">
