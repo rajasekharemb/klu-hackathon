@@ -268,7 +268,7 @@ export default function EventBoard({
   const [error, setError] = useState("");
   const requestId = useRef(0);
 
-  const size = Number(PAGE_SIZE) || 10;
+  const size = Number(PAGE_SIZE) || 12;
   const pageCount = Math.max(1, Math.ceil(total / size));
 
   const registrationMap = useMemo(

@@ -23,7 +23,7 @@ export default async function DashboardPage() {
       .order("recommended", { ascending: false })
       .order("score", { ascending: false })
       .order("deadline", { ascending: true, nullsFirst: false })
-      .range(0, (Number(PAGE_SIZE) || 10) - 1),
+      .range(0, (Number(PAGE_SIZE) || 12) - 1),
     supabase.from("refresh_runs").select("*").order("ran_at", { ascending: false }).limit(1),
   ]);
 
@@ -91,7 +91,7 @@ export default async function DashboardPage() {
         </h1>
         <p className="sub">
           Refreshed every day at 2:00 AM, and anything past its registration deadline drops off
-          by itself. Ten to a page, best matches first - always confirm the details on the
+          by itself. Twelve to a page, best matches first - always confirm the details on the
           official page before you apply.
         </p>
         <div className="mastmeta">

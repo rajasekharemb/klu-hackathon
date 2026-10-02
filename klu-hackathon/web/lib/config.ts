@@ -6,8 +6,8 @@
  * rendered "0 of 100 shown". Keep values both sides need in here.
  */
 
-/** Cards per page on the student board. Ten keeps a page to two tidy rows. */
-export const PAGE_SIZE = 10;
+/** Cards per page on the student board. Twelve is three full rows of four. */
+export const PAGE_SIZE = 12;
 
 /** Rows per page in the admin tables. */
 export const ADMIN_PAGE_SIZE = 10;

@@ -146,8 +146,10 @@ h1 em { font-style: italic; color: var(--gold-deep); }
   border-radius: 4px; padding: 3px 9px; font-weight: 700; }
 
 /* --------------------------------------------------------------------- cards */
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 20px;
-  transition: opacity .12s; }
+/* 280px gives four columns inside the 1320px container, so a page of twelve is
+   three complete rows rather than five-five-two. */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;
+  align-items: start; transition: opacity .12s; }
 .grid.busy { opacity: .4; pointer-events: none; }
 .card { background: var(--card); border: .8px solid var(--line); border-radius: 6px;
   overflow: hidden; display: flex; flex-direction: column; box-shadow: var(--shadow-sm);
@@ -165,10 +167,10 @@ h1 em { font-style: italic; color: var(--gold-deep); }
 .flag.hiring { left: auto; right: 10px; background: var(--purple); }
 .flag.rec { left: auto; right: 10px; top: 10px; background: var(--gold); color: var(--navy-deep); }
 .card.recommended .flag.hiring { top: 40px; }
-.body { padding: 14px 15px 16px; display: flex; flex-direction: column; gap: 9px; flex: 1; }
+.body { padding: 12px 13px 13px; display: flex; flex-direction: column; gap: 7px; flex: 1; }
 .venue { color: var(--ink-4); font-size: .64rem; font-weight: 600; letter-spacing: .1em; }
-.card h4 { font-size: .93rem; line-height: 1.35; margin: 0; font-weight: 600; color: var(--navy-deep);
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.7em; }
+.card h4 { font-size: .9rem; line-height: 1.3; margin: 0; font-weight: 600; color: var(--navy-deep);
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .priceline { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; }
 .prize { color: var(--gold-deep); font-weight: 700; font-size: .9rem; }
 .prize.muted { color: var(--ink-4); font-weight: 500; font-size: .85rem; }
@@ -178,8 +180,8 @@ h1 em { font-style: italic; color: var(--gold-deep); }
 .state.open { background: var(--gold-pale); color: var(--gold-deep); }
 .state.closed { background: #f1efe9; color: var(--grey); }
 .state.tba { background: var(--navy-soft); color: var(--navy-mid); }
-.rows { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--line); padding-top: 11px; }
-.row { display: flex; gap: 10px; font-size: .765rem; align-items: baseline; }
+.rows { display: flex; flex-direction: column; gap: 4px; border-top: 1px solid var(--line); padding-top: 8px; }
+.row { display: flex; gap: 10px; font-size: .745rem; align-items: baseline; }
 .k { color: var(--ink-4); min-width: 68px; flex-shrink: 0; font-size: .7rem;
   text-transform: uppercase; letter-spacing: .05em; }
 .v { overflow-wrap: anywhere; color: var(--ink-2); }
@@ -187,30 +189,30 @@ h1 em { font-style: italic; color: var(--gold-deep); }
 .tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
 .tag { background: var(--gold-pale); border: .8px solid var(--line); border-radius: 3px;
   padding: 2px 7px; font-size: .66rem; color: var(--ink-2); }
-.morelink { align-self: flex-start; background: none; border: 0; padding: 2px 0; font-family: inherit;
-  font-size: .72rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+.morelink { align-self: flex-start; background: none; border: 0; padding: 0; font-family: inherit;
+  font-size: .7rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
   color: var(--ink-4); cursor: pointer; }
 .morelink:hover { color: var(--gold-deep); }
 
-.actions { display: flex; gap: 8px; margin-top: auto; padding-top: 6px; flex-wrap: wrap; }
-.btn { flex: 1; text-align: center; padding: 9px 8px; border-radius: 4px; font-weight: 600;
-  font-size: .78rem; letter-spacing: .2px; border: 0; cursor: pointer; font-family: inherit; }
+.actions { display: flex; gap: 6px; padding-top: 4px; flex-wrap: wrap; }
+.btn { flex: 1; text-align: center; padding: 7px 8px; border-radius: 4px; font-weight: 600;
+  font-size: .745rem; letter-spacing: .2px; border: 0; cursor: pointer; font-family: inherit; }
 .btn.primary { background: var(--navy-deep); color: #fff; }
 .btn.ghost { background: var(--card); color: var(--navy-deep); border: .8px solid var(--line-strong); }
 .btn.ghost:hover { border-color: var(--navy-deep); }
 /* "I registered" - full width under the two main buttons, so it reads as a follow-up
    step rather than a third equal choice. */
-.btn.confirmbtn { flex-basis: 100%; margin-top: 2px; background: var(--gold-pale);
-  color: var(--gold-deep); border: .8px solid var(--gold); font-size: .76rem; }
+.btn.confirmbtn { flex-basis: 100%; margin-top: 1px; background: var(--gold-pale);
+  color: var(--gold-deep); border: .8px solid var(--gold); font-size: .73rem; }
 .btn.confirmbtn:hover { background: var(--gold); color: var(--navy-deep); }
 .btn.confirmbtn.done { background: var(--green); color: #fff; border-color: var(--green); }
 .btn.confirmbtn:disabled { opacity: .6; cursor: default; }
-.btn.savebtn { flex-basis: 100%; margin-top: 2px; background: var(--card); color: var(--muted);
-  border: .8px dashed var(--line-strong); font-size: .76rem; }
+.btn.savebtn { flex: 1 1 0; min-width: 96px; margin-top: 1px; background: var(--card); color: var(--muted);
+  border: .8px dashed var(--line-strong); font-size: .73rem; }
 .btn.savebtn:hover:not(:disabled) { color: var(--navy-deep); border-color: var(--navy-deep); }
 .btn.savebtn.on { background: var(--navy-soft); color: var(--navy-mid); border-style: solid; border-color: #b9c9e6; }
-.btn.recbtn { flex-basis: 100%; margin-top: 2px; background: var(--card); color: var(--muted);
-  border: .8px dashed var(--line-strong); font-size: .76rem; }
+.btn.recbtn { flex: 1 1 0; min-width: 96px; margin-top: 1px; background: var(--card); color: var(--muted);
+  border: .8px dashed var(--line-strong); font-size: .73rem; }
 .btn.recbtn:hover:not(:disabled) { color: var(--gold-deep); border-color: var(--gold); }
 .btn.recbtn.on { background: var(--gold); color: var(--navy-deep); border-style: solid; border-color: var(--gold-deep); }
 .card.recommended { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold), var(--shadow); }
@@ -320,7 +322,6 @@ h1 em { font-style: italic; color: var(--gold-deep); }
 footer { max-width: 1320px; margin: 36px auto 0; padding: 28px 24px 56px; color: var(--muted);
   font-size: .82rem; border-top: 1px solid var(--line); }
 
-@media (max-width: 1100px) { .grid { grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); } }
 @media (max-width: 860px) { .sortpick { margin-left: 0; width: 100%; } }
 @media (max-width: 760px)  { .grid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 560px)  { .draftgrid .wide2 { grid-column: span 1; } }
