@@ -58,16 +58,16 @@ a { color: inherit; text-decoration: none; }
 .who { margin-left: auto; color: rgba(255, 255, 255, .55); font-size: 11.5px; letter-spacing: .3px; }
 
 /* ------------------------------------------------------------------ masthead */
-.hero { max-width: 1320px; margin: auto; padding: 42px 24px 10px; }
+.hero { max-width: 1320px; margin: auto; padding: 52px 24px 16px; text-align: center; }
 h1 { font-family: var(--display); font-weight: 500; color: var(--navy-deep);
   font-size: clamp(1.9rem, 4.4vw, 3rem); line-height: 1.08; letter-spacing: -.02em; margin: 0 0 16px; }
 h1 em { font-style: italic; color: var(--gold-deep); }
-.sub { color: var(--ink-2); max-width: 680px; margin: 0; font-size: .97rem; line-height: 1.62; }
+.sub { color: var(--ink-2); max-width: 980px; margin: 0 auto; font-size: .97rem; line-height: 1.68; }
 
 /* The figures read as one line of running text, the way the Y25 masthead does -
    four boxed tiles competed with the headline for attention. */
-.mastmeta { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 26px 0 2px;
-  padding-top: 20px; border-top: 1px solid var(--line); }
+.mastmeta { display: flex; align-items: center; justify-content: center; gap: 16px; flex-wrap: wrap;
+  margin: 32px auto 2px; padding-top: 22px; border-top: 1px solid var(--line); max-width: 980px; }
 .metaitem { display: inline-flex; align-items: baseline; gap: 7px; font-size: .78rem;
   color: var(--muted); letter-spacing: .4px; text-transform: uppercase; }
 .metaitem strong { font-family: var(--display); font-size: 1.12rem; font-weight: 600;
@@ -78,15 +78,14 @@ h1 em { font-style: italic; color: var(--gold-deep); }
 .filterbar { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
   background: var(--surface-2); margin-top: 26px; }
 .filterinner { max-width: 1320px; margin: auto; padding: 22px 24px 24px;
-  display: flex; flex-direction: column; gap: 20px; }
+  display: flex; flex-wrap: wrap; align-items: flex-start; gap: 20px 44px; }
+.filtersearch { flex: 1 1 100%; }
 /* Label on its own line with the chips beneath it, as the Y25 page sets
    "Choose engineering discipline" - beside them it reads as a table column. */
 .filterrow { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
 .filterlabel { font-size: .66rem; font-weight: 600; letter-spacing: 1px; text-transform: uppercase;
   color: var(--muted); }
 .pills { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-.pilldiv { width: 1px; align-self: stretch; min-height: 24px; background: var(--line-strong);
-  margin: 0 5px; }
 
 /* The branch chips from the Y25 page: square-ish, quiet when idle, navy with a
    gold dot when chosen. */
@@ -100,7 +99,7 @@ h1 em { font-style: italic; color: var(--gold-deep); }
 .pill.active::before { content: ""; width: 5px; height: 5px; border-radius: 50%;
   background: var(--gold); flex-shrink: 0; }
 
-.filtersearch { width: 100%; padding: 11px 15px; border: .8px solid var(--line-strong);
+.filtersearch { padding: 11px 15px; border: .8px solid var(--line-strong);
   border-radius: 4px; font-size: .9rem; background: var(--card); font-family: inherit; color: var(--ink); }
 .filtersearch:focus { outline: 2px solid var(--gold); outline-offset: -1px; }
 
