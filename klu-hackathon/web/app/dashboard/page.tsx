@@ -3,6 +3,7 @@ import { canSeeAdminArea } from "@/lib/roles";
 import EventBoard, { type EventRow, type Registration, type Saved } from "@/components/EventBoard";
 import { PAGE_SIZE } from "@/lib/config";
 import SignOutButton from "@/components/SignOutButton";
+import SiteHeader from "@/components/SiteHeader";
 import SectionNav from "@/components/SectionNav";
 
 export const dynamic = "force-dynamic"; // always show the latest nightly refresh
@@ -58,24 +59,31 @@ export default async function DashboardPage() {
 
   return (
     <>
-      <div className="topbar">
-        <div className="topinner">
-          <div className="brand">
-            <span className="mark">K</span> KLU Hackathon Portal
-          </div>
-          <nav className="navlinks">
+      <SiteHeader
+        name="KLU Hackathon Portal"
+        eyebrow="KL Deemed to be University · Student opportunities"
+        who={profile?.full_name || profile?.roll_no || user.user?.email}
+        crumb={
+          <>
+            <span className="crumb">Portal</span>
+            <span className="crumbsep">&rsaquo;</span>
             <SectionNav />
+          </>
+        }
+        actions={
+          <>
             {canSeeAdminArea(profile?.role) && (
-              <a className="adminlink" href="/admin">
+              <a className="doclink" href="/admin">
                 Admin
               </a>
             )}
-            <span className="who">{profile?.full_name || profile?.roll_no || user.user?.email}</span>
-            <a href="/change-password">Change password</a>
+            <a className="doclink secondary" href="/change-password">
+              Change password
+            </a>
             <SignOutButton />
-          </nav>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <div className="hero">
         <h1>

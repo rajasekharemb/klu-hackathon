@@ -19,10 +19,11 @@ export default function SectionNav() {
 
   return (
     <>
-      <button type="button" onClick={() => show("open")}>
+      <button type="button" className="crumblink" onClick={() => show("open")}>
         Hackathons
       </button>
-      <button type="button" onClick={() => show("hiring")}>
+      <span className="crumbsep">&middot;</span>
+      <button type="button" className="crumblink" onClick={() => show("hiring")}>
         Hiring challenges
       </button>
     </>

@@ -13,7 +13,7 @@ export default function SignOutButton() {
   }
 
   return (
-    <button type="button" onClick={signOut}>
+    <button type="button" className="doclink secondary" onClick={signOut}>
       Sign out
     </button>
   );

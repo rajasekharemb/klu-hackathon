@@ -3,6 +3,7 @@ import Link from "next/link";
 import { serverClient } from "@/lib/supabase/server";
 import { canManage, canSeeAdminArea } from "@/lib/roles";
 import SignOutButton from "@/components/SignOutButton";
+import SiteHeader from "@/components/SiteHeader";
 import AdminStudents, { type Profile } from "@/components/AdminStudents";
 import AdminRegistrations, { type Registration } from "@/components/AdminRegistrations";
 import AddEventByLink from "@/components/AddEventByLink";
@@ -83,19 +84,35 @@ export default async function AdminPage() {
 
   return (
     <>
-      <div className="topbar">
-        <div className="topinner">
-          <div className="brand">
-            <span className="mark">K</span> {isOwner ? "Owner" : "Admin"}
-          </div>
-          <nav className="navlinks">
-            <Link href="/dashboard">Student view</Link>
-            <Link href="/change-password">Change password</Link>
-            <span className="who">{me?.full_name || user.email}</span>
+      <SiteHeader
+        name="KLU Hackathon Portal"
+        eyebrow={
+          isOwner
+            ? "Owner console · Accounts, events and registrations"
+            : "Admin console · Registrations and the nightly refresh"
+        }
+        who={me?.full_name || user.email}
+        crumb={
+          <>
+            <Link className="crumblink" href="/dashboard">
+              Portal
+            </Link>
+            <span className="crumbsep">&rsaquo;</span>
+            <span className="crumb">{isOwner ? "Owner" : "Admin"}</span>
+          </>
+        }
+        actions={
+          <>
+            <Link className="doclink secondary" href="/dashboard">
+              Student view
+            </Link>
+            <Link className="doclink secondary" href="/change-password">
+              Change password
+            </Link>
             <SignOutButton />
-          </nav>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <div className="hero">
         <h1>Administration</h1>
