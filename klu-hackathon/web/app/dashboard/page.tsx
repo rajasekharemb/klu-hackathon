@@ -87,7 +87,7 @@ export default async function DashboardPage() {
 
       <div className="hero">
         <h1>
-          Hackathons &amp; competitions <em>across India</em>, open to you right now.
+          Hackathons &amp; competitions <em>across India</em>
         </h1>
         <p className="sub">
           Refreshed every day at 2:00 AM, and anything past its registration deadline drops off
