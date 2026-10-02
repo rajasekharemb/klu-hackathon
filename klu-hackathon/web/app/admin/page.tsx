@@ -141,6 +141,20 @@ export default async function AdminPage() {
       {isOwner && (
         <div className="band">
           <div className="bandhead">
+            <h3>Accounts <span className="count">{totalAccounts}</span></h3>
+          </div>
+          <p className="sub tablenote">
+            Only you can see this section. <b>Make admin</b> gives someone the registrations,
+            refresh log and event figures - but not this table, so they cannot promote anyone
+            else or remove you. Your own owner account cannot be changed or deleted here.
+          </p>
+          <AdminStudents total={totalAccounts} adminCount={totalAdmins} meId={user.id} />
+        </div>
+      )}
+
+      {isOwner && (
+        <div className="band">
+          <div className="bandhead">
             <h3>Add an event by link</h3>
           </div>
           <p className="sub tablenote">
@@ -187,20 +201,6 @@ export default async function AdminPage() {
           <AdminRegistrations registrations={registrations} canEdit={isOwner} />
         )}
       </div>
-
-      {isOwner && (
-        <div className="band">
-          <div className="bandhead">
-            <h3>Accounts <span className="count">{totalAccounts}</span></h3>
-          </div>
-          <p className="sub tablenote">
-            Only you can see this section. <b>Make admin</b> gives someone the registrations,
-            refresh log and event figures - but not this table, so they cannot promote anyone
-            else or remove you. Your own owner account cannot be changed or deleted here.
-          </p>
-          <AdminStudents total={totalAccounts} adminCount={totalAdmins} meId={user.id} />
-        </div>
-      )}
 
       <div className="band">
         <div className="bandhead">
