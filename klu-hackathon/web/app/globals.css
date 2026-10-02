@@ -85,10 +85,10 @@ h1 em { font-style: italic; color: var(--gold-deep); }
    header simply covered the search box on the way past. */
 .filterbar { position: sticky; top: var(--masthead-h); z-index: 20;
   border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
-  background: var(--surface-2); box-shadow: var(--shadow-sm); margin-top: 18px; }
-.filterinner { max-width: 1320px; margin: auto; padding: 15px 24px 17px;
-  display: flex; flex-wrap: wrap; align-items: flex-start; gap: 14px 44px; }
-.filtersearch { flex: 1 1 100%; }
+  background: var(--surface-2); box-shadow: var(--shadow-sm); }
+.filterinner { max-width: 1320px; margin: auto; padding: 12px 24px 14px;
+  display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px 44px; }
+.searchwrap { max-width: 1320px; margin: 16px auto 12px; padding: 0 24px; }
 /* Label on its own line with the chips beneath it, as the Y25 page sets
    "Choose engineering discipline" - beside them it reads as a table column. */
 .filterrow { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
@@ -108,7 +108,7 @@ h1 em { font-style: italic; color: var(--gold-deep); }
 .pill.active::before { content: ""; width: 5px; height: 5px; border-radius: 50%;
   background: var(--gold); flex-shrink: 0; }
 
-.filtersearch { padding: 9px 14px; border: .8px solid var(--line-strong);
+.filtersearch { width: 100%; padding: 9px 14px; border: .8px solid var(--line-strong);
   border-radius: 4px; font-size: .9rem; background: var(--card); font-family: inherit; color: var(--ink); }
 .filtersearch:focus { outline: 2px solid var(--gold); outline-offset: -1px; }
 

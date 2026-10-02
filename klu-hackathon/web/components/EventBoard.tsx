@@ -436,16 +436,21 @@ export default function EventBoard({
       {/* The filters sit in their own strip under the masthead, labelled a row at a
           time, the way the Y25 site presents "Choose engineering discipline" - the
           same controls in one wrapping line read as a wall of buttons. */}
+      {/* The search box scrolls away with the page. Only the chips pin, because
+          they are what you reach for while reading the board - keeping the input
+          up there cost 50px of every screen to something rarely used twice. */}
+      <div className="searchwrap">
+        <input
+          type="search"
+          className="filtersearch"
+          placeholder="Search by name, college, city, organiser..."
+          value={term}
+          onChange={(e) => setTerm(e.target.value)}
+        />
+      </div>
+
       <section className="filterbar">
         <div className="filterinner">
-          <input
-            type="search"
-            className="filtersearch"
-            placeholder="Search by name, college, city, organiser..."
-            value={term}
-            onChange={(e) => setTerm(e.target.value)}
-          />
-
           <div className="filterrow">
             <span className="filterlabel">Choose a list</span>
             <div className="pills">
