@@ -44,8 +44,10 @@ export default async function AdminPage() {
     eventsCount,
     hiringCount,
     confirmedCount,
+    examConfirmedCount,
     runResult,
     regsResult,
+    examRegsResult,
     statsResult,
   ] = await Promise.all([
       // Counts only - the tables below are searched, not listed, so none of these
@@ -59,11 +61,22 @@ export default async function AdminPage() {
         .from("event_registrations")
         .select("id", { count: "exact", head: true })
         .eq("confirmed", true),
+      // Exams counted apart, through the view that knows which events are exams.
+      supabase
+        .from("exam_registration_count")
+        .select("total")
+        .maybeSingle(),
       // Only the most recent run. The older rows were a scrolling log nobody read;
       // what matters is whether last night worked.
       supabase.from("refresh_runs").select("*").order("ran_at", { ascending: false }).limit(1),
-      // Confirmed registrations only; a search in the panel goes wider.
-      supabase.rpc("admin_registrations", { p_search: null, p_confirmed_only: true, p_limit: 200 }),
+      // Confirmed only; a search inside either panel goes wider. Two calls rather
+      // than one split in the browser, so each list gets its own 200.
+      supabase.rpc("admin_registrations", {
+        p_search: null, p_confirmed_only: true, p_limit: 200, p_kind: "event",
+      }),
+      supabase.rpc("admin_registrations", {
+        p_search: null, p_confirmed_only: true, p_limit: 200, p_kind: "exam",
+      }),
       supabase.rpc("admin_event_stats"),
     ]);
 
@@ -74,8 +87,11 @@ export default async function AdminPage() {
   const lastRun = (runResult.data ?? [])[0] as Run | undefined;
   const totalConfirmed = confirmedCount.count ?? 0;
   const registrations = (regsResult.data ?? []) as Registration[];
+  const examRegistrations = (examRegsResult.data ?? []) as Registration[];
+  const totalExamConfirmed = (examConfirmedCount.data as { total: number } | null)?.total ?? 0;
   // A failed RPC used to render as "0 confirmed", which reads like real data.
   const registrationsError = regsResult.error?.message ?? "";
+  const examRegistrationsError = examRegsResult.error?.message ?? "";
   const sourceStats = (statsResult.data ?? []) as Array<{ source: string; total: number }>;
 
   const staleHours = lastRun ? (Date.now() - new Date(lastRun.ran_at).getTime()) / 3_600_000 : Infinity;
@@ -127,7 +143,8 @@ export default async function AdminPage() {
           )}
           <div className="stat"><b>{totalEvents}</b><span>Events</span></div>
           <div className="stat"><b>{totalHiring}</b><span>Hiring</span></div>
-          <div className="stat"><b>{totalConfirmed}</b><span>Confirmed</span></div>
+          <div className="stat"><b>{totalConfirmed - totalExamConfirmed}</b><span>Confirmed</span></div>
+          <div className="stat"><b>{totalExamConfirmed}</b><span>Exam entries</span></div>
         </div>
 
         {staleHours > 30 && (
@@ -184,21 +201,56 @@ export default async function AdminPage() {
 
       <div className="band">
         <div className="bandhead">
-          <h3>Confirmed registrations <span className="count">{totalConfirmed}</span></h3>
+          <h3>
+            Hackathon registrations{" "}
+            <span className="count">{totalConfirmed - totalExamConfirmed}</span>
+          </h3>
         </div>
         <p className="sub tablenote">
-          Students who pressed &quot;I registered&quot; after filling the KLU form. Clicks that were
-          never confirmed are not listed - search by roll number, name or event to see those too.
+          Hackathons and hiring challenges a student confirmed with &quot;I registered&quot; after
+          filling the KLU form. Clicks that were never confirmed are not listed - search by roll
+          number, name or title to see those too.
           {!isOwner && " This list is read-only - only the owner can remove records."}
         </p>
         {registrationsError ? (
           <div className="msg error">
             Could not load registrations: {registrationsError}. If this mentions a function or
-            its arguments, migrations 012 and 013 have not been run yet - this is not an empty
-            list, it is a failed query.
+            its arguments, migration 017 has not been run yet - this is not an empty list, it is
+            a failed query.
           </div>
         ) : (
-          <AdminRegistrations registrations={registrations} canEdit={isOwner} />
+          <AdminRegistrations
+            registrations={registrations}
+            canEdit={isOwner}
+            kind="event"
+            label="hackathon registrations"
+          />
+        )}
+      </div>
+
+      <div className="band">
+        <div className="bandhead">
+          <h3>
+            Competitive exam registrations <span className="count">{totalExamConfirmed}</span>
+          </h3>
+        </div>
+        <p className="sub tablenote">
+          Which exams students are sitting, kept apart from the hackathon list - it is a different
+          question, and one table answering both answers neither well.
+          {!isOwner && " This list is read-only - only the owner can remove records."}
+        </p>
+        {examRegistrationsError ? (
+          <div className="msg error">
+            Could not load exam registrations: {examRegistrationsError}. If this mentions a
+            function or its arguments, migration 017 has not been run yet.
+          </div>
+        ) : (
+          <AdminRegistrations
+            registrations={examRegistrations}
+            canEdit={isOwner}
+            kind="exam"
+            label="exam registrations"
+          />
         )}
       </div>
 

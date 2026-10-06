@@ -27,9 +27,15 @@ export type Registration = {
 export default function AdminRegistrations({
   registrations: initial,
   canEdit,
+  kind,
+  label,
 }: {
   registrations: Registration[];
   canEdit: boolean;
+  /** "exam" for the exam list, "event" for everything that is not one. */
+  kind: "exam" | "event";
+  /** What this list is called, used in the search box and the empty state. */
+  label: string;
 }) {
   const router = useRouter();
   const [registrations, setRegistrations] = useState<Registration[]>(initial);
@@ -61,11 +67,12 @@ export default function AdminRegistrations({
       p_search: needle || null,
       p_confirmed_only: !needle,
       p_limit: 200,
+      p_kind: kind,
     });
     setBusy(false);
     setSearched(Boolean(needle));
     if (queryError) {
-      setError(`${queryError.message} - has migration 012 been run?`);
+      setError(`${queryError.message} - has migration 017 been run?`);
       return;
     }
     setRegistrations((data ?? []) as Registration[]);
@@ -121,7 +128,7 @@ export default function AdminRegistrations({
         <input
           type="search"
           className="adminsearch"
-          placeholder="Search any registration by roll number, name or event..."
+          placeholder={`Search ${label} by roll number, name or title...`}
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
         />
@@ -215,7 +222,7 @@ export default function AdminRegistrations({
             ))}
             {!rows.length && (
               <tr><td colSpan={canEdit ? 8 : 7}>
-                  {searched ? "Nothing matched that search." : "No confirmed registrations yet."}
+                  {searched ? "Nothing matched that search." : `No confirmed ${label} yet.`}
                 </td></tr>
             )}
           </tbody>
