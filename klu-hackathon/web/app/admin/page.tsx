@@ -61,11 +61,13 @@ export default async function AdminPage() {
         .from("event_registrations")
         .select("id", { count: "exact", head: true })
         .eq("confirmed", true),
-      // Exams counted apart, through the view that knows which events are exams.
+      // Exams counted apart. An inner join to events rather than a view, so this
+      // needs nothing beyond the tables themselves.
       supabase
-        .from("exam_registration_count")
-        .select("total")
-        .maybeSingle(),
+        .from("event_registrations")
+        .select("id, events!inner(kind)", { count: "exact", head: true })
+        .eq("confirmed", true)
+        .eq("events.kind", "exam"),
       // Only the most recent run. The older rows were a scrolling log nobody read;
       // what matters is whether last night worked.
       supabase.from("refresh_runs").select("*").order("ran_at", { ascending: false }).limit(1),
@@ -88,7 +90,7 @@ export default async function AdminPage() {
   const totalConfirmed = confirmedCount.count ?? 0;
   const registrations = (regsResult.data ?? []) as Registration[];
   const examRegistrations = (examRegsResult.data ?? []) as Registration[];
-  const totalExamConfirmed = (examConfirmedCount.data as { total: number } | null)?.total ?? 0;
+  const totalExamConfirmed = examConfirmedCount.count ?? 0;
   // A failed RPC used to render as "0 confirmed", which reads like real data.
   const registrationsError = regsResult.error?.message ?? "";
   const examRegistrationsError = examRegsResult.error?.message ?? "";
@@ -172,13 +174,14 @@ export default async function AdminPage() {
       {isOwner && (
         <div className="band">
           <div className="bandhead">
-            <h3>Add an event by link</h3>
+            <h3>Add a link</h3>
           </div>
           <p className="sub tablenote">
-            Paste the link to a hackathon or hiring challenge the nightly job has not picked up.
-            The page is read for its title, dates and poster; you correct anything wrong before it
-            is saved. A registration deadline is required, because the portal only shows events
-            students can still enter.
+            Paste a link the nightly job has not picked up, then say which list it belongs to -
+            hackathons, hiring challenges or competitive exams. The page is read for its title,
+            dates and poster; you correct anything wrong before it is saved. A hackathon needs a
+            registration deadline, because the portal only lists events students can still enter;
+            an exam does not, since exams are listed whether or not their dates are out.
           </p>
           <AddEventByLink />
         </div>

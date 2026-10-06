@@ -5,10 +5,19 @@ import { useRouter } from "next/navigation";
 import { browserClient } from "@/lib/supabase/client";
 import PosterField from "./PosterField";
 
+type Kind = "open" | "hiring" | "exam";
+
+/** What each list is called in a sentence, for the button and the confirmation. */
+const LIST_LABELS: Record<Kind, string> = {
+  open: "hackathons",
+  hiring: "hiring challenges",
+  exam: "competitive exams",
+};
+
 type Draft = {
   url: string;
   title: string;
-  kind: "open" | "hiring";
+  kind: Kind;
   deadline: string;
   start: string;
   end: string;
@@ -63,6 +72,8 @@ export default function AddEventByLink() {
         setBusy(false);
         return;
       }
+      // The page is read before the owner has said what it is, so the kind is
+      // left at its default and asked for first in the form below.
       setDraft({ ...EMPTY, ...data, kind: "open" });
       setFound(data.found_dates ?? []);
       setWarning(data.warning ?? "");
@@ -75,7 +86,12 @@ export default function AddEventByLink() {
   async function save() {
     if (!draft) return;
     if (!draft.title.trim()) return setError("A title is required.");
-    if (!draft.deadline) return setError("A registration deadline is required - without one the event cannot be shown.");
+    // An exam needs no deadline: upcoming_events exempts exams from that gate,
+    // and most exam sites have not announced one. Everything else does, or it
+    // would be saved and then never listed.
+    if (!draft.deadline && draft.kind !== "exam") {
+      return setError("A registration deadline is required - without one the event cannot be shown.");
+    }
 
     setBusy(true);
     setError("");
@@ -83,7 +99,7 @@ export default function AddEventByLink() {
       p_url: draft.url,
       p_title: draft.title,
       p_kind: draft.kind,
-      p_deadline: draft.deadline,
+      p_deadline: draft.deadline || null,
       p_start: draft.start || null,
       p_end: draft.end || null,
       p_poster_url: draft.poster_url || null,
@@ -96,10 +112,10 @@ export default function AddEventByLink() {
     setBusy(false);
 
     if (rpcError) {
-      setError(`${rpcError.message} - has migration 010 been run?`);
+      setError(`${rpcError.message} - has migration 018 been run?`);
       return;
     }
-    setDone(`Added "${draft.title}" to ${draft.kind === "hiring" ? "hiring challenges" : "hackathons"}.`);
+    setDone(`Added "${draft.title}" to ${LIST_LABELS[draft.kind]}.`);
     setDraft(null);
     setLink("");
     router.refresh();
@@ -153,27 +169,34 @@ export default function AddEventByLink() {
         <div className="draftbox">
           <p className="sub tablenote">
             {warning
-              ? "Type in what the page shows. Only the title and the registration deadline are required."
+              ? `Type in what the page shows. Pick the list first - ${
+                  draft.kind === "exam"
+                    ? "an exam needs only a title."
+                    : "a hackathon needs a title and a registration deadline."
+                }`
               : "This is what the page gave up. Correct anything wrong - especially the dates, which are read out of the page text and are the most likely to be misread."}
             {found.length > 1 && ` Dates seen on the page: ${found.join(", ")}.`}
           </p>
 
           <div className="draftgrid">
             <label className="field">
+              <span>Which list? *</span>
+              <select value={draft.kind} onChange={(e) => set("kind", e.target.value as Kind)}>
+                <option value="open">Hackathons &amp; competitions</option>
+                <option value="hiring">Hiring challenges</option>
+                <option value="exam">Competitive exams</option>
+              </select>
+            </label>
+
+            <label className="field">
               <span>Title</span>
               <input value={draft.title} onChange={(e) => set("title", e.target.value)} />
             </label>
 
             <label className="field">
-              <span>Goes under</span>
-              <select value={draft.kind} onChange={(e) => set("kind", e.target.value as "open" | "hiring")}>
-                <option value="open">Hackathons &amp; competitions</option>
-                <option value="hiring">Hiring challenges</option>
-              </select>
-            </label>
-
-            <label className="field">
-              <span>Registration deadline *</span>
+              <span>
+                {draft.kind === "exam" ? "Last date to apply" : "Registration deadline *"}
+              </span>
               <input type="date" value={draft.deadline} onChange={(e) => set("deadline", e.target.value)} />
             </label>
 
@@ -215,7 +238,7 @@ export default function AddEventByLink() {
 
           <div className="tabletools">
             <button className="minibtn" type="button" onClick={save} disabled={busy}>
-              {busy ? "Saving..." : `Add to ${draft.kind === "hiring" ? "hiring challenges" : "hackathons"}`}
+              {busy ? "Saving..." : `Add to ${LIST_LABELS[draft.kind]}`}
             </button>
             <a className="minibtn" href={draft.url} target="_blank" rel="noopener noreferrer">
               Open the page

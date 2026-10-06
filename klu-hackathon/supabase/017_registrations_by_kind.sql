@@ -78,22 +78,6 @@ $$;
 revoke all on function public.admin_registrations(text, boolean, int, text) from anon;
 grant execute on function public.admin_registrations(text, boolean, int, text) to authenticated;
 
--- The exam total for the admin header. A view rather than an embedded count in
--- the browser, so the join to events happens once, in the database.
---
--- security_invoker, so row level security still applies: an admin sees every
--- confirmed exam entry, and anyone else would see only their own.
-create or replace view public.exam_registration_count
-with (security_invoker = true) as
-    select count(*)::int as total
-      from public.event_registrations r
-      join public.events e on e.id = r.event_id
-     where r.confirmed
-       and e.kind = 'exam';
-
-revoke all on public.exam_registration_count from anon;
-grant select on public.exam_registration_count to authenticated;
-
 -- Confirmed entries per kind:
 --   select e.kind, count(*) from public.event_registrations r
 --     join public.events e on e.id = r.event_id
