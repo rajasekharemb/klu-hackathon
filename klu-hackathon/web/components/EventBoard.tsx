@@ -170,22 +170,35 @@ function EventCard({
         </div>
 
         <div className="rows">
-          <div className="row">
-            <span className="k">{isExam ? "Exam date" : "Dates"}</span>
-            <span className="v">
-              {isExam
-                ? event.start_date
+          {/* An exam shows a date row only when it has that date. These sites
+              publish their calendars as PDFs and JavaScript, so most have
+              neither, and two rows reading "Not announced yet" on every card is
+              noise standing where information should be. A hackathon always
+              shows both, because it is only listed once it has a deadline. */}
+          {(!isExam || event.start_date) && (
+            <div className="row">
+              <span className="k">{isExam ? "Exam date" : "Dates"}</span>
+              <span className="v">
+                {isExam
                   ? pretty(event.start_date)
-                  : "Not announced yet"
-                : `${pretty(event.start_date)} \u2192 ${pretty(event.end_date)}`}
-            </span>
-          </div>
-          <div className="row">
-            <span className="k">{isExam ? "Apply by" : "Register by"}</span>
-            <span className={`v ${event.deadline ? "deadline" : ""}`}>
-              {event.deadline ? pretty(event.deadline) : isExam ? "Not announced yet" : "TBA"}
-            </span>
-          </div>
+                  : `${pretty(event.start_date)} → ${pretty(event.end_date)}`}
+              </span>
+            </div>
+          )}
+          {(!isExam || event.deadline) && (
+            <div className="row">
+              <span className="k">{isExam ? "Apply by" : "Register by"}</span>
+              <span className={`v ${event.deadline ? "deadline" : ""}`}>
+                {event.deadline ? pretty(event.deadline) : "TBA"}
+              </span>
+            </div>
+          )}
+          {isExam && !event.start_date && !event.deadline && (
+            <div className="row">
+              <span className="k">Dates</span>
+              <span className="v">Not published yet &mdash; see the official site</span>
+            </div>
+          )}
 
           {open && (
             <>
@@ -236,9 +249,13 @@ function EventCard({
         </button>
 
         <div className="actions">
-          <a className="btn ghost" href={event.url ?? "#"} target="_blank" rel="noopener noreferrer">
-            {isExam ? "Official site" : "Event page"}
-          </a>
+          {/* An exam has one link, and RegisterButton already opens it and logs
+              the visit - a second button to the same URL is just a second button. */}
+          {!isExam && (
+            <a className="btn ghost" href={event.url ?? "#"} target="_blank" rel="noopener noreferrer">
+              Event page
+            </a>
+          )}
           <RegisterButton
             eventId={event.id}
             href={event.registration_url || event.url || "#"}
