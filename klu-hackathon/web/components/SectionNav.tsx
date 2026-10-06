@@ -13,7 +13,7 @@
 export const SECTION_EVENT = "portal:section";
 
 export default function SectionNav() {
-  function show(kind: "open" | "hiring") {
+  function show(kind: "open" | "hiring" | "exam") {
     window.dispatchEvent(new CustomEvent(SECTION_EVENT, { detail: kind }));
   }
 
@@ -25,6 +25,10 @@ export default function SectionNav() {
       <span className="crumbsep">&middot;</span>
       <button type="button" className="crumblink" onClick={() => show("hiring")}>
         Hiring challenges
+      </button>
+      <span className="crumbsep">&middot;</span>
+      <button type="button" className="crumblink" onClick={() => show("exam")}>
+        Competitive exams
       </button>
     </>
   );

@@ -130,7 +130,7 @@ SCOPE_LABELS = {
     "unknown": "Unconfirmed",
 }
 KINDS = ("open", "hiring")
-KIND_LABELS = {"open": "Hackathon", "hiring": "Hiring challenge"}
+KIND_LABELS = {"open": "Hackathon", "hiring": "Hiring challenge", "exam": "Competitive exam"}
 
 
 def _iso(value: date | None) -> str:
@@ -693,6 +693,13 @@ def detect_kind(event: Event) -> str:
 
 
 def classify(event: Event, extra_text: str = "") -> None:
+    # A competitive exam is curated, not inferred: the source already knows what
+    # it is and who runs it. Putting it through the rules below would hand it to
+    # detect_kind(), which knows only "hiring" and "open" - and would relabel
+    # every recruitment exam as a hiring challenge.
+    if event.kind == "exam":
+        return
+
     haystack = " ".join(
         (event.title, event.description, event.location, event.eligibility, event.url, extra_text)
     ).lower()
@@ -729,7 +736,8 @@ def _infer_scope(event: Event, haystack: str) -> str:
 
 # Platforms run from India: their events are aimed at Indian students even when the listing
 # never spells out a city. Anything from elsewhere has to name an Indian place to qualify.
-INDIA_BASED_SOURCES = {"Unstop", "HackIndia", "Hack2Skill", "HackerEarth", "Devfolio", "Smart India Hackathon"}
+INDIA_BASED_SOURCES = {"Unstop", "HackIndia", "Hack2Skill", "HackerEarth", "Devfolio",
+                       "Smart India Hackathon", "Competitive Exams"}
 FOREIGN_MARKERS = (
     "united states", ", usa", " usa ", ", u.s.", "united kingdom", ", uk", "canada", "ontario",
     "california", "texas", "virginia", "maryland", "pennsylvania", "georgia, ", "new york",
@@ -1224,9 +1232,159 @@ def _first(text: str, pattern: str) -> str:
     return clean(match.group(1), 200) if match else ""
 
 
+# ============================================================================
+# Competitive exams
+#
+# Not scraped from a listing site, because there isn't one. These are the
+# standing national and international exams students sit, with their official
+# pages. The list is curated here on purpose: the facts that matter - who runs
+# the exam, and what it admits you to - are stable for years, and no amount of
+# scraping a government portal yields them reliably.
+#
+# What is fetched from each site is the poster and whatever dates the page
+# announces. An exam with nothing announced is shown as such rather than guessed
+# at; every one of these runs annually, so a blank date means "not published
+# yet", not "not happening".
+# ============================================================================
+
+# short name, full name, conducting body, what it is for, official page
+EXAMS: tuple[tuple[str, str, str, str, str], ...] = (
+    ("CAT", "Common Admission Test", "Indian Institutes of Management",
+     "MBA admission to the IIMs and most Indian business schools.",
+     "https://iimcat.ac.in"),
+    ("GATE", "Graduate Aptitude Test in Engineering", "IISc and the IITs",
+     "M.Tech and PhD admission, and recruitment by many public sector undertakings.",
+     "https://gate2027.iitm.ac.in/"),
+    ("SSC", "Staff Selection Commission examinations", "Staff Selection Commission",
+     "Group B and Group C posts across central government departments.",
+     "https://ssc.gov.in/"),
+    ("UPSC", "Union Public Service Commission examinations", "Union Public Service Commission",
+     "Civil Services, Engineering Services, CDS and other central recruitment.",
+     "https://www.upsc.gov.in/"),
+    ("GMAT", "Graduate Management Admission Test", "GMAC",
+     "Admission to MBA and master's programmes in management worldwide.",
+     "https://www.mba.com/"),
+    ("GRE", "Graduate Record Examinations", "ETS",
+     "Admission to graduate programmes abroad, chiefly in the United States.",
+     "https://www.ets.org/gre.html"),
+    ("IELTS", "International English Language Testing System",
+     "British Council, IDP and Cambridge",
+     "English proficiency for study, work and migration abroad.",
+     "https://ielts.org/"),
+    ("TOEFL", "Test of English as a Foreign Language", "ETS",
+     "English proficiency, accepted by most universities abroad.",
+     "https://www.ets.org/toefl.html"),
+    ("dMAT", "Medical admission test for Germany", "dMAT",
+     "Admission to medical study in Germany, sat in India.",
+     "https://www.d-mat.de/en/dmat-in-india/"),
+    ("CUET", "Common University Entrance Test", "National Testing Agency",
+     "Undergraduate admission to central and participating universities.",
+     "https://cuet.nta.nic.in/"),
+    ("RRB", "Railway Recruitment Board examinations", "Railway Recruitment Boards",
+     "Technical and non-technical recruitment across Indian Railways.",
+     "https://www.rrbapply.gov.in/"),
+    ("ISRO", "ISRO scientist and engineer recruitment", "Indian Space Research Organisation",
+     "Scientist and Engineer posts at ISRO centres.",
+     "https://www.isro.gov.in/Careers.html"),
+    ("DRDO", "DRDO scientist recruitment", "Recruitment and Assessment Centre, DRDO",
+     "Scientist B and above at DRDO laboratories.",
+     "https://rac.gov.in/"),
+    ("BARC", "BARC OCES and DGFS", "Bhabha Atomic Research Centre",
+     "Training and Scientific Officer posts in the Department of Atomic Energy.",
+     "https://www.barc.gov.in/"),
+    ("IBPS", "Institute of Banking Personnel Selection examinations", "IBPS",
+     "Probationary Officer, Clerk and Specialist Officer posts in public sector banks.",
+     "https://www.ibps.in/"),
+    ("ICAR", "ICAR entrance examinations", "Indian Council of Agricultural Research",
+     "Admission to agricultural universities at undergraduate and postgraduate level.",
+     "https://icar.org.in/"),
+    ("CLAT", "Common Law Admission Test", "Consortium of National Law Universities",
+     "Law admission at the National Law Universities.",
+     "https://clat2027.consortiumofnlus.ac.in/"),
+    ("UGC-NET", "UGC National Eligibility Test", "National Testing Agency",
+     "Eligibility for Assistant Professor and Junior Research Fellowship.",
+     "https://ugcnet.nta.nic.in/"),
+    ("MAT", "Management Aptitude Test", "All India Management Association",
+     "MBA admission, accepted by several hundred business schools.",
+     "https://mat.aima.in/"),
+    ("XAT", "Xavier Aptitude Test", "XLRI Jamshedpur",
+     "MBA admission to XLRI and other XAMI member schools.",
+     "https://xatonline.in/"),
+)
+
+CLOSING_LABELS = (
+    "last date", "closing date", "closes on", "registration ends", "last day",
+    "application deadline", "end date", "due date", "last date for",
+)
+SITTING_LABELS = (
+    "exam date", "date of examination", "examination date", "test date", "date of exam",
+)
+
+
+def _labelled_date(text: str, labels: tuple[str, ...]) -> date | None:
+    """The soonest future date written within 80 characters of one of these labels.
+
+    Deliberately narrow. A government portal's home page is full of dates -
+    circulars, notice board entries, last-updated stamps - and taking the first
+    date on the page would put a 2019 notice on a card as though it were a
+    deadline. A date has to be announced next to a word saying what it is, and
+    has to still be ahead of us, before it is believed.
+    """
+    low = text.lower()
+    best: date | None = None
+    today = date.today()
+    for label in labels:
+        start = 0
+        while True:
+            at = low.find(label, start)
+            if at < 0:
+                break
+            window = text[at : at + 80]
+            for pattern in DATE_PATTERNS:
+                match = re.search(pattern, window, re.I)
+                if match:
+                    found = parse_date(match.group(0))
+                    if found and found >= today and (best is None or found < best):
+                        best = found
+                    break
+            start = at + len(label)
+    return best
+
+
+def source_exams(fetcher: Fetcher) -> list[Event]:
+    events: list[Event] = []
+    for short, full, body, purpose, url in EXAMS:
+        event = Event(
+            title=f"{short} - {full}",
+            source="Competitive Exams",
+            url=url,
+            source_id=short.lower(),
+            organizer=body,
+            registration_url=url,
+            kind="exam",
+            scope="national",
+            mode="offline",
+            location="India",
+            categories=["Competitive exam"],
+            domains=["Competitive exam"],
+            eligibility="See the official notification",
+            description=purpose,
+        )
+        markup = fetcher.get(url)
+        if markup:
+            text = strip_html(markup)
+            event.deadline = _labelled_date(text, CLOSING_LABELS)
+            event.start = _labelled_date(text, SITTING_LABELS)
+            poster = find_poster_url(markup, url)
+            if poster:
+                event.poster = Poster(url=poster)
+        events.append(event)
+    return events
+
+
 # Standing national programmes worth listing even before their dates are announced.
 # Anything here survives the date window and is shown with "dates to be announced".
-ALWAYS_KEEP_SOURCES = {"Smart India Hackathon"}
+ALWAYS_KEEP_SOURCES = {"Smart India Hackathon", "Competitive Exams"}
 
 SOURCES = (
     ("Unstop", source_unstop),
@@ -1237,6 +1395,7 @@ SOURCES = (
     ("Smart India Hackathon", source_sih),
     ("Hack2Skill", source_hack2skill),
     ("MLH", source_mlh),
+    ("Competitive Exams", source_exams),
 )
 
 
@@ -1823,8 +1982,9 @@ def main(argv: list[str] | None = None) -> int:
                         help="repeatable; default keeps every scope")
     parser.add_argument("--source", action="append", default=[],
                         help="only these sources (repeatable), e.g. --source Unstop")
-    parser.add_argument("--kind", choices=["all", "open", "hiring"], default="all",
-                        help="'open' for hackathons only, 'hiring' for recruitment challenges only")
+    parser.add_argument("--kind", choices=["all", "open", "hiring", "exam"], default="all",
+                        help="'open' for hackathons, 'hiring' for recruitment challenges, "
+                             "'exam' for competitive exams")
     parser.add_argument("--include-global", action="store_true",
                         help="also keep global online events with no Indian tie (default: India only)")
     parser.add_argument("--no-posters", action="store_true", help="skip poster download and verification")
@@ -1875,11 +2035,17 @@ def main(argv: list[str] | None = None) -> int:
             continue
         if not is_in_india(event, include_global=args.include_global):
             continue
+        # A standing programme is kept whatever its dates say. The window applies
+        # to the listings, which churn; it must not drop CAT because the sitting
+        # is seven months out while keeping an exam that has announced nothing.
+        always_keep = event.source in ALWAYS_KEEP_SOURCES
         dates = [d for d in (event.deadline, event.start, event.end) if d]
         if dates:
-            if not any(today - timedelta(days=1) <= d <= window_end for d in dates):
+            if not always_keep and not any(
+                today - timedelta(days=1) <= d <= window_end for d in dates
+            ):
                 continue
-        elif not (args.keep_undated or event.source in ALWAYS_KEEP_SOURCES):
+        elif not (args.keep_undated or always_keep):
             continue
         kept.append(event)
 

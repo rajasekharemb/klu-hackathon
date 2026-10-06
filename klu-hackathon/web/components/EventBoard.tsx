@@ -32,6 +32,7 @@ export type EventRow = {
   participants: string | null;
   domains: string[] | null;
   categories: string[] | null;
+  description: string | null;
   poster_url: string | null;
   poster_status: string | null;
   tracker_status: string | null;
@@ -40,7 +41,7 @@ export type EventRow = {
   recommend_note?: string | null;
 };
 
-type Kind = "all" | "open" | "hiring";
+type Kind = "all" | "open" | "hiring" | "exam";
 type Status = "all" | "NEW" | "OLD";
 type Scope = "all" | "mine" | "saved";
 type Sort = "best" | "soon" | "new";
@@ -54,9 +55,10 @@ const SCOPE_LABELS: Record<string, string> = {
 };
 
 const KIND_PILLS: Array<[Kind, string]> = [
-  ["all", "Both"],
+  ["all", "Everything"],
   ["open", "Hackathons"],
   ["hiring", "Hiring challenges"],
+  ["exam", "Competitive exams"],
 ];
 
 const STATUS_PILLS: Array<[Status, string]> = [
@@ -124,10 +126,15 @@ function EventCard({
   const [open, setOpen] = useState(false);
   const [state, stateClass] = registrationState(event);
   const isNew = event.tracker_status === "NEW";
+  // An exam is a standing annual thing, not a contest: it has a conducting body
+  // rather than a venue, no prize, and a sitting date rather than a run of days.
+  const isExam = event.kind === "exam";
   const hasPoster =
     event.poster_url && (event.poster_status === "ok" || event.poster_status === "thumbnail");
   const tags = (event.domains?.length ? event.domains : event.categories ?? []).slice(0, 3);
-  const venue = event.location || (event.mode === "online" ? "Virtual" : "Venue to be announced");
+  const venue = isExam
+    ? event.organizer || "Official examination"
+    : event.location || (event.mode === "online" ? "Virtual" : "Venue to be announced");
   const recommended = Boolean(event.recommended);
 
   return (
@@ -136,6 +143,7 @@ function EventCard({
         <span className={`flag ${isNew ? "new" : "old"}`}>{isNew ? "NEW" : "OLD"}</span>
         {recommended && <span className="flag rec">&#9733; PICK</span>}
         {event.kind === "hiring" && <span className="flag hiring">HIRING</span>}
+        {isExam && <span className="flag exam">EXAM</span>}
         {hasPoster ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img loading="lazy" src={event.poster_url!} alt={`${event.title} poster`} />
@@ -151,21 +159,32 @@ function EventCard({
         <h4 title={event.title}>{event.title}</h4>
         {recommended && event.recommend_note && <p className="recnote">{event.recommend_note}</p>}
 
+        {isExam && event.description && <p className="purpose">{event.description}</p>}
+
         <div className="priceline">
-          <div className={`prize ${event.prize ? "" : "muted"}`}>{event.prize || "Prize TBA"}</div>
+          {/* "Prize TBA" on a UPSC card would be nonsense - there is no prize. */}
+          {!isExam && (
+            <div className={`prize ${event.prize ? "" : "muted"}`}>{event.prize || "Prize TBA"}</div>
+          )}
           <span className={`state ${stateClass}`}>{state}</span>
         </div>
 
         <div className="rows">
           <div className="row">
-            <span className="k">Dates</span>
+            <span className="k">{isExam ? "Exam date" : "Dates"}</span>
             <span className="v">
-              {pretty(event.start_date)} &rarr; {pretty(event.end_date)}
+              {isExam
+                ? event.start_date
+                  ? pretty(event.start_date)
+                  : "Not announced yet"
+                : `${pretty(event.start_date)} \u2192 ${pretty(event.end_date)}`}
             </span>
           </div>
           <div className="row">
-            <span className="k">Register by</span>
-            <span className={`v ${event.deadline ? "deadline" : ""}`}>{pretty(event.deadline)}</span>
+            <span className="k">{isExam ? "Apply by" : "Register by"}</span>
+            <span className={`v ${event.deadline ? "deadline" : ""}`}>
+              {event.deadline ? pretty(event.deadline) : isExam ? "Not announced yet" : "TBA"}
+            </span>
           </div>
 
           {open && (
@@ -218,7 +237,7 @@ function EventCard({
 
         <div className="actions">
           <a className="btn ghost" href={event.url ?? "#"} target="_blank" rel="noopener noreferrer">
-            Event page
+            {isExam ? "Official site" : "Event page"}
           </a>
           <RegisterButton
             eventId={event.id}
@@ -240,8 +259,8 @@ function EventCard({
 
 const SELECT_COLUMNS =
   "id,key,title,source,kind,scope,url,registration_url,start_date,end_date,deadline,mode," +
-  "location,organizer,prize,eligibility,participants,domains,categories,poster_url," +
-  "poster_status,tracker_status,score,recommended,recommend_note";
+  "location,organizer,prize,eligibility,participants,domains,categories,description," +
+  "poster_url,poster_status,tracker_status,score,recommended,recommend_note";
 
 export default function EventBoard({
   initialEvents,
@@ -342,6 +361,8 @@ export default function EventBoard({
         );
       }
 
+      query = query.order("title", { ascending: true });
+
       const { data, count, error: queryError } = await query.range(
         which * size,
         which * size + size - 1,
@@ -392,7 +413,7 @@ export default function EventBoard({
   // and look like the link was broken.
   useEffect(() => {
     function onSection(event: Event) {
-      const which = (event as CustomEvent<"open" | "hiring">).detail;
+      const which = (event as CustomEvent<"open" | "hiring" | "exam">).detail;
       setScope("all");
       setStatus("all");
       setKind(which);
@@ -429,14 +450,18 @@ export default function EventBoard({
         ? "Saved for later"
         : kind === "hiring"
           ? "Hiring challenges"
-          : kind === "open"
-            ? "Hackathons & competitions"
-            : "Hackathons & hiring challenges";
+          : kind === "exam"
+            ? "Competitive exams"
+            : kind === "open"
+              ? "Hackathons & competitions"
+              : "Everything that is open";
 
   const note =
     kind === "hiring"
       ? "Run by companies to recruit. You compete for a job, often against working professionals - check the experience requirements first."
-      : "Open contests you enter to build something and win a prize.";
+      : kind === "exam"
+        ? "National and international entrance and recruitment exams, with their official pages. Dates come from those pages; where none are shown, the exam has not announced them yet."
+        : "Open contests you enter to build something and win a prize.";
 
   const firstOnPage = total === 0 ? 0 : page * size + 1;
   const lastOnPage = Math.min(total, page * size + events.length);

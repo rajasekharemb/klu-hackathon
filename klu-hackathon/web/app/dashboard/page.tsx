@@ -59,8 +59,9 @@ export default async function DashboardPage() {
     .select("id", { count: "exact", head: true });
 
   // Counted across every open event, not just the page that was sent.
-  const [hiringCount, freshCount] = await Promise.all([
+  const [hiringCount, examCount, freshCount] = await Promise.all([
     supabase.from("upcoming_events").select("id", { count: "exact", head: true }).eq("kind", "hiring"),
+    supabase.from("upcoming_events").select("id", { count: "exact", head: true }).eq("kind", "exam"),
     supabase.from("upcoming_events").select("id", { count: "exact", head: true }).eq("tracker_status", "NEW"),
   ]).then((results) => results.map((r) => r.count ?? 0));
 
@@ -101,9 +102,11 @@ export default async function DashboardPage() {
           details on the official page before you apply.
         </p>
         <div className="mastmeta">
-          <span className="metaitem"><strong>{totalEvents - hiringCount}</strong><span>hackathons</span></span>
+          <span className="metaitem"><strong>{totalEvents - hiringCount - examCount}</strong><span>hackathons</span></span>
           <span className="metadot">&middot;</span>
           <span className="metaitem"><strong>{hiringCount}</strong><span>hiring challenges</span></span>
+          <span className="metadot">&middot;</span>
+          <span className="metaitem"><strong>{examCount}</strong><span>competitive exams</span></span>
           <span className="metadot">&middot;</span>
           <span className="metaitem"><strong>{freshCount}</strong><span>found this week</span></span>
           <span className="metadot">&middot;</span>

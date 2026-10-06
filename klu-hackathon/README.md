@@ -280,6 +280,36 @@ student. Create them shortly before they are needed, not weeks ahead.
 
 ---
 
+## Competitive exams
+
+A third list beside Hackathons and Hiring challenges: the standing national and international
+exams students sit - CAT, GATE, UPSC, SSC, CUET, GRE, IELTS and the rest - each linking to its
+official page.
+
+These do not come from a listing site, because there isn't one. The twenty exams are curated in
+`EXAMS` in `hackathon_tracker.py`: short name, full name, conducting body, what it admits you to,
+and the official URL. Those facts are stable for years, and no amount of scraping a government
+portal yields them reliably.
+
+What *is* fetched from each site is the poster and any dates the page announces. Be realistic
+about the second one: these home pages are mostly JavaScript, PDF notices and notice boards, so
+most exams will show "Not announced yet" for both the sitting date and the closing date. A date
+is only believed when it appears within 80 characters of a label saying what it is
+(`last date`, `exam date`, ...) **and** is still in the future - otherwise a 2019 circular ends
+up on a card as though it were a deadline.
+
+Two rules differ from hackathons, both in `016_competitive_exams.sql` and the tracker:
+
+- **No deadline required.** `upcoming_events` lists a hackathon only once it says when
+  registration closes. An exam with no announced dates is not a closed exam - it runs annually -
+  so `kind = 'exam'` is exempt from that gate.
+- **Exempt from the `--days` window.** A sitting seven months out would otherwise be dropped
+  while an exam that has announced nothing is kept, which is backwards.
+
+To refresh only this list: `python hackathon_tracker.py --sources "competitive exams"`.
+
+---
+
 ## What counts as a registration
 
 **Register Now** opens the event's own site and logs the click. **I registered - fill the KLU

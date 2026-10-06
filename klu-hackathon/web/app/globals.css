@@ -165,6 +165,9 @@ h1 em { font-style: italic; color: var(--gold-deep); }
 .flag.new { background: var(--green); }
 .flag.old { background: rgba(26, 22, 18, .55); }
 .flag.hiring { left: auto; right: 10px; background: var(--purple); }
+.flag.exam { left: auto; right: 10px; background: var(--navy-mid); }
+/* The one-line "what this exam is for", under the title. */
+.purpose { margin: 0; font-size: .78rem; line-height: 1.45; color: var(--ink-2); }
 .flag.rec { left: auto; right: 10px; top: 10px; background: var(--gold); color: var(--navy-deep); }
 .card.recommended .flag.hiring { top: 40px; }
 .body { padding: 12px 13px 13px; display: flex; flex-direction: column; gap: 7px; flex: 1; }
