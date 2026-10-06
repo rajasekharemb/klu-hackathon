@@ -13,7 +13,11 @@ concurrency:
 
 jobs:
   refresh:
-    runs-on: ubuntu-latest
+    # Pinned, not ubuntu-latest. GitHub repoints that label at Ubuntu 26 on
+    # 19 October 2026, and this job runs unattended at 2am - a runner image
+    # changing under it would surface as a silently stale dashboard, not an
+    # error anyone sees. Move it deliberately, after a manual run passes.
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
 
     steps:
