@@ -295,12 +295,24 @@ What *is* fetched from each site is the poster and any dates the page announces.
 runs over several days gets both ends - "Examination date: 7 Feb to 15 Feb" becomes a start and
 an end - and one that sits on a single day gets a start only. A second date is taken as the end
 of the same sitting only within 120 days of the first; beyond that it is a different exam cycle
-mentioned on the same page. Be realistic
-about the second one: these home pages are mostly JavaScript, PDF notices and notice boards, so
-most exams will show "Not announced yet" for both the sitting date and the closing date. A date
-is only believed when it appears within 80 characters of a label saying what it is
+mentioned on the same page.
+
+Dates are looked for in three places, in order: the landing page, the schedule page it links to
+(`/important_dates` and the like), and the public notice PDF attached to the home page - which is
+where NTA and the other government bodies actually publish theirs. PDFs are read in pypdf's
+`layout` mode, because the default returns every label and then every value, leaving no date
+anywhere near the row it belongs to. Notices are tried newest first, judged by the `/YYYY/MM/`
+in their URL, since the filenames themselves say nothing.
+
+A date is only believed when it appears within 80 characters of a label saying what it is
 (`last date`, `exam date`, ...) **and** is still in the future - otherwise a 2019 circular ends
-up on a card as though it were a deadline.
+up on a card as though it were a deadline. Words nearby can also disqualify it: a closing date
+for "rectification" is not a closing date to apply, and "Examination fee 28 October" is a
+payment deadline rather than a sitting.
+
+Even so, most exams will show nothing. Of the twenty, four carry a date - the rest render their
+schedules with no text fallback at all. An owner can fill both dates in by hand through
+**Add a link**; pasting the same URL again corrects the entry rather than duplicating it.
 
 Two rules differ from hackathons, both in `016_competitive_exams.sql` and the tracker:
 
