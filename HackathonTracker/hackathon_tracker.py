@@ -380,10 +380,13 @@ class Fetcher:
 # ============================================================================
 
 MONTHS = "Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec"
+# A superscript ordinal ("21<sup>st</sup> September") comes out of strip_html as
+# "21 st September", so the suffix is allowed to stand apart from its number.
+ORDINAL = r"\s*(?:st|nd|rd|th)?"
 DATE_PATTERNS = (
     r"\d{4}-\d{2}-\d{2}",
-    rf"\d{{1,2}}(?:st|nd|rd|th)?\s+(?:{MONTHS})[a-z]*\.?\s*,?\s*\d{{4}}",
-    rf"(?:{MONTHS})[a-z]*\.?\s+\d{{1,2}}(?:st|nd|rd|th)?\s*,?\s*\d{{4}}",
+    rf"\d{{1,2}}{ORDINAL}\s+(?:{MONTHS})[a-z]*\.?\s*,?\s*\d{{4}}",
+    rf"(?:{MONTHS})[a-z]*\.?\s+\d{{1,2}}{ORDINAL}\s*,?\s*\d{{4}}",
     r"\d{1,2}[/-]\d{1,2}[/-]\d{4}",
 )
 MONTH_NUMBERS = {
@@ -413,13 +416,13 @@ def parse_date(value: Any, default_year: int | None = None) -> date | None:
         except ValueError:
             return None
     # 19 September 2026  /  19th Sep, 2026
-    match = re.search(rf"(\d{{1,2}})(?:st|nd|rd|th)?\s+({MONTHS})[a-z]*\.?\s*,?\s*(\d{{4}})?", text, re.I)
+    match = re.search(rf"(\d{{1,2}}){ORDINAL}\s+({MONTHS})[a-z]*\.?\s*,?\s*(\d{{4}})?", text, re.I)
     if match:
         year = int(match.group(3)) if match.group(3) else default_year
         if year:
             return _safe_date(year, MONTH_NUMBERS[match.group(2)[:3].lower()], int(match.group(1)))
     # Sep 20, 2026  /  Friday, Aug 14, 2026
-    match = re.search(rf"({MONTHS})[a-z]*\.?\s+(\d{{1,2}})(?:st|nd|rd|th)?\s*,?\s*(\d{{4}})?", text, re.I)
+    match = re.search(rf"({MONTHS})[a-z]*\.?\s+(\d{{1,2}}){ORDINAL}\s*,?\s*(\d{{4}})?", text, re.I)
     if match:
         year = int(match.group(3)) if match.group(3) else default_year
         if year:
@@ -1307,11 +1310,33 @@ CLOSING_LABELS = (
     "application deadline", "end date", "due date", "last date for",
 )
 SITTING_LABELS = (
-    "exam date", "date of examination", "examination date", "test date", "date of exam",
+    # "examination" on its own catches "GATE 2027 Examinations 6 th February 2027",
+    # where the only label is the plural noun.
+    "examination", "exam date", "test date", "date of exam", "exam schedule",
+)
+
+# A closing date has to be a deadline to apply. These sites also publish closing
+# dates for amending an application already sent - GATE's "Closing Date of
+# Application rectification" sits three weeks after registration shut - and
+# reporting one of those as "apply by" tells a student they still have time when
+# they do not.
+# A sitting is when the paper is written. Results, admit cards and counselling
+# all sit near the same heading - GATE's page runs "...examinations Exam Results
+# 19 th March 2027" - and letting those in stretched a four-day exam to five weeks.
+SITTING_EXCLUDE = (
+    "result", "answer key", "admit card", "score card", "scorecard",
+    "counselling", "counseling", "rank", "cut off", "cut-off",
+)
+
+CLOSING_EXCLUDE = (
+    "rectification", "correction", "change of", "city change", "admit card",
+    "result", "answer key", "objection", "challenge",
 )
 
 
-def _labelled_dates(text: str, labels: tuple[str, ...]) -> list[date]:
+def _labelled_dates(
+    text: str, labels: tuple[str, ...], exclude: tuple[str, ...] = ()
+) -> list[date]:
     """Every future date written within 80 characters of one of these labels.
 
     Deliberately narrow. A government portal's home page is full of dates -
@@ -1323,10 +1348,24 @@ def _labelled_dates(text: str, labels: tuple[str, ...]) -> list[date]:
     low = text.lower()
     today = date.today()
     found: set[date] = set()
+    day_pair = re.compile(
+        rf"(\d{{1,2}})\s*(?:st|nd|rd|th)?\s*(?:,|and|&)\s*"
+        rf"(\d{{1,2}})\s*(?:st|nd|rd|th)?\s+({MONTHS})[a-z]*\.?\s*,?\s*(\d{{4}})",
+        re.I,
+    )
     for label in labels:
         at = low.find(label)
         while at >= 0:
             window = text[at : at + 80]
+            if any(word in window.lower() for word in exclude):
+                at = low.find(label, at + len(label))
+                continue
+            for pair in day_pair.finditer(window):
+                month, year = MONTH_NUMBERS[pair.group(3)[:3].lower()], int(pair.group(4))
+                for day in (pair.group(1), pair.group(2)):
+                    parsed = _safe_date(year, month, int(day))
+                    if parsed and parsed >= today:
+                        found.add(parsed)
             for pattern in DATE_PATTERNS:
                 for match in re.finditer(pattern, window, re.I):
                     parsed = parse_date(match.group(0))
@@ -1336,9 +1375,11 @@ def _labelled_dates(text: str, labels: tuple[str, ...]) -> list[date]:
     return sorted(found)
 
 
-def _labelled_date(text: str, labels: tuple[str, ...]) -> date | None:
+def _labelled_date(
+    text: str, labels: tuple[str, ...], exclude: tuple[str, ...] = ()
+) -> date | None:
     """The soonest of those dates."""
-    dates = _labelled_dates(text, labels)
+    dates = _labelled_dates(text, labels, exclude)
     return dates[0] if dates else None
 
 
@@ -1348,15 +1389,50 @@ def _labelled_date(text: str, labels: tuple[str, ...]) -> date | None:
 MAX_SITTING_SPAN = timedelta(days=120)
 
 
-def _labelled_span(text: str, labels: tuple[str, ...]) -> tuple[date | None, date | None]:
+def _labelled_span(
+    text: str, labels: tuple[str, ...], exclude: tuple[str, ...] = ()
+) -> tuple[date | None, date | None]:
     """First and last day of a sitting, or (first, None) when only one date is given."""
-    dates = _labelled_dates(text, labels)
+    dates = _labelled_dates(text, labels, exclude)
     if not dates:
         return None, None
     first = dates[0]
     later = [d for d in dates if first < d <= first + MAX_SITTING_SPAN]
     return first, (later[-1] if later else None)
 
+
+
+# Exam sites keep their schedule on a page of its own and draw the landing page's
+# copy of it with JavaScript, so the homepage HTML carries the heading and no
+# dates at all. GATE is the clearest case: gate2027.iitm.ac.in renders an
+# "Important Dates" timeline that is nowhere in the markup, while
+# /important_dates spells the same dates out as text.
+DATE_PAGE_HINTS = ("important_dates", "important-dates", "importantdates",
+                   "key_dates", "key-dates", "/dates", "schedule", "notification")
+
+
+def _dates_page(markup: str, base_url: str) -> str:
+    """A link on the same site that looks like it lists the schedule.
+
+    Hints are tried in order, not links: GATE's menu puts "Notifications" before
+    "Important Dates", and taking whichever matched first sent us to a page of
+    press releases whose dates belong to no particular milestone.
+    """
+    host = urlparse(base_url).netloc.lower()
+    links = [l for l in collect_links(markup, base_url)
+             if urlparse(l).netloc.lower() == host]
+    for hint in DATE_PAGE_HINTS:
+        for link in links:
+            if hint in link.lower():
+                return link
+    return ""
+
+
+def _read_exam_dates(event: Event, text: str) -> bool:
+    """Fill in whatever the text announces. True when something was found."""
+    event.deadline = _labelled_date(text, CLOSING_LABELS, CLOSING_EXCLUDE)
+    event.start, event.end = _labelled_span(text, SITTING_LABELS, SITTING_EXCLUDE)
+    return bool(event.deadline or event.start)
 
 
 def source_exams(fetcher: Fetcher) -> list[Event]:
@@ -1380,12 +1456,17 @@ def source_exams(fetcher: Fetcher) -> list[Event]:
         )
         markup = fetcher.get(url)
         if markup:
-            text = strip_html(markup)
-            event.deadline = _labelled_date(text, CLOSING_LABELS)
-            event.start, event.end = _labelled_span(text, SITTING_LABELS)
             poster = find_poster_url(markup, url)
             if poster:
                 event.poster = Poster(url=poster)
+
+            if not _read_exam_dates(event, strip_html(markup)):
+                # Nothing on the landing page. Try the schedule page it links to.
+                inner = _dates_page(markup, url)
+                if inner and inner.rstrip("/") != url.rstrip("/"):
+                    deeper = fetcher.get(inner)
+                    if deeper:
+                        _read_exam_dates(event, strip_html(deeper))
         events.append(event)
     return events
 
