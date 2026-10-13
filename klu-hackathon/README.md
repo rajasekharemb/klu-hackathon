@@ -291,7 +291,11 @@ These do not come from a listing site, because there isn't one. The twenty exams
 and the official URL. Those facts are stable for years, and no amount of scraping a government
 portal yields them reliably.
 
-What *is* fetched from each site is the poster and any dates the page announces. Be realistic
+What *is* fetched from each site is the poster and any dates the page announces. An exam that
+runs over several days gets both ends - "Examination date: 7 Feb to 15 Feb" becomes a start and
+an end - and one that sits on a single day gets a start only. A second date is taken as the end
+of the same sitting only within 120 days of the first; beyond that it is a different exam cycle
+mentioned on the same page. Be realistic
 about the second one: these home pages are mostly JavaScript, PDF notices and notice boards, so
 most exams will show "Not announced yet" for both the sitting date and the closing date. A date
 is only believed when it appears within 80 characters of a label saying what it is

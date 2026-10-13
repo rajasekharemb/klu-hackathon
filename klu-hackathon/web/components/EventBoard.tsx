@@ -177,9 +177,14 @@ function EventCard({
               shows both, because it is only listed once it has a deadline. */}
           {(!isExam || event.start_date) && (
             <div className="row">
-              <span className="k">{isExam ? "Exam date" : "Dates"}</span>
+              <span className="k">
+                {isExam ? (event.end_date ? "Exam dates" : "Exam date") : "Dates"}
+              </span>
               <span className="v">
-                {isExam
+                {/* An exam running over several days shows both ends; one that
+                    sits on a single day shows that date rather than
+                    "3 Jan 2027 → TBA". */}
+                {isExam && !event.end_date
                   ? pretty(event.start_date)
                   : `${pretty(event.start_date)} → ${pretty(event.end_date)}`}
               </span>

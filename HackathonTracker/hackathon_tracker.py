@@ -1196,16 +1196,6 @@ def _dates_in_text(text: str) -> list[date]:
     return sorted(found)
 
 
-def _labelled_date(text: str, labels: Iterable[str]) -> date | None:
-    for label in labels:
-        match = re.search(rf"{re.escape(label)}.{{0,60}}?({'|'.join(DATE_PATTERNS)})", text, re.I)
-        if match:
-            parsed = parse_date(match.group(1))
-            if parsed:
-                return parsed
-    return None
-
-
 def _mode_from_text(text: str) -> str:
     lower = f" {text.lower()} "
     online = "online" in lower or "virtual" in lower
@@ -1321,8 +1311,8 @@ SITTING_LABELS = (
 )
 
 
-def _labelled_date(text: str, labels: tuple[str, ...]) -> date | None:
-    """The soonest future date written within 80 characters of one of these labels.
+def _labelled_dates(text: str, labels: tuple[str, ...]) -> list[date]:
+    """Every future date written within 80 characters of one of these labels.
 
     Deliberately narrow. A government portal's home page is full of dates -
     circulars, notice board entries, last-updated stamps - and taking the first
@@ -1331,24 +1321,42 @@ def _labelled_date(text: str, labels: tuple[str, ...]) -> date | None:
     has to still be ahead of us, before it is believed.
     """
     low = text.lower()
-    best: date | None = None
     today = date.today()
+    found: set[date] = set()
     for label in labels:
-        start = 0
-        while True:
-            at = low.find(label, start)
-            if at < 0:
-                break
+        at = low.find(label)
+        while at >= 0:
             window = text[at : at + 80]
             for pattern in DATE_PATTERNS:
-                match = re.search(pattern, window, re.I)
-                if match:
-                    found = parse_date(match.group(0))
-                    if found and found >= today and (best is None or found < best):
-                        best = found
-                    break
-            start = at + len(label)
-    return best
+                for match in re.finditer(pattern, window, re.I):
+                    parsed = parse_date(match.group(0))
+                    if parsed and parsed >= today:
+                        found.add(parsed)
+            at = low.find(label, at + len(label))
+    return sorted(found)
+
+
+def _labelled_date(text: str, labels: tuple[str, ...]) -> date | None:
+    """The soonest of those dates."""
+    dates = _labelled_dates(text, labels)
+    return dates[0] if dates else None
+
+
+# An exam that runs over several days writes both ends next to the same label:
+# "Examination date: 7 Feb 2027 to 15 Feb 2027". Anything further out than this
+# is a different exam cycle mentioned on the same page, not the end of this one.
+MAX_SITTING_SPAN = timedelta(days=120)
+
+
+def _labelled_span(text: str, labels: tuple[str, ...]) -> tuple[date | None, date | None]:
+    """First and last day of a sitting, or (first, None) when only one date is given."""
+    dates = _labelled_dates(text, labels)
+    if not dates:
+        return None, None
+    first = dates[0]
+    later = [d for d in dates if first < d <= first + MAX_SITTING_SPAN]
+    return first, (later[-1] if later else None)
+
 
 
 def source_exams(fetcher: Fetcher) -> list[Event]:
@@ -1374,7 +1382,7 @@ def source_exams(fetcher: Fetcher) -> list[Event]:
         if markup:
             text = strip_html(markup)
             event.deadline = _labelled_date(text, CLOSING_LABELS)
-            event.start = _labelled_date(text, SITTING_LABELS)
+            event.start, event.end = _labelled_span(text, SITTING_LABELS)
             poster = find_poster_url(markup, url)
             if poster:
                 event.poster = Poster(url=poster)
