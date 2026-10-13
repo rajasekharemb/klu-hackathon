@@ -94,6 +94,9 @@ LOG_FILE = HERE / "tracker.log"
 
 DEFAULT_WINDOW_DAYS = 120          # keep events dated within this many days from today
 REQUEST_TIMEOUT = 25               # seconds
+MAX_PDF_BYTES = 10_000_000         # a public notice is a few hundred KB; this is a guard
+MAX_PDF_PAGES = 8                  # the schedule is always near the front
+MAX_PDF_TRIES = 3                  # how many attached notices to open before giving up
 POLITE_DELAY = 0.8                 # seconds between requests to the same host
 MAX_PER_SOURCE = 250               # default cap on events taken from one source
 # Unstop carries far more than the rest combined, so it gets explicit per-feed caps.
@@ -373,6 +376,35 @@ class Fetcher:
                 self.errors.append(f"{url}: bad JSON ({exc})")
                 return None
         return response.text
+
+    def get_bytes(self, url: str, max_bytes: int = MAX_PDF_BYTES) -> bytes | None:
+        """The whole file. A Range request would truncate a PDF into nonsense."""
+        if self.obey_robots and not self.robots.allows(url):
+            self.skipped.append(url)
+            log.info("  skipped (robots.txt): %s", url)
+            return None
+        self._wait(url)
+        try:
+            response = self.session.get(url, timeout=REQUEST_TIMEOUT * 2, stream=True)
+        except requests.RequestException as exc:
+            self.errors.append(f"{url}: {type(exc).__name__}: {exc}")
+            return None
+        if response.status_code >= 400:
+            self.errors.append(f"{url}: HTTP {response.status_code}")
+            return None
+        declared = int(response.headers.get("Content-Length") or 0)
+        if declared > max_bytes:
+            self.skipped.append(f"{url}: {declared} bytes, over the cap")
+            return None
+        chunks: list[bytes] = []
+        total = 0
+        for chunk in response.iter_content(65536):
+            total += len(chunk)
+            if total > max_bytes:
+                self.skipped.append(f"{url}: longer than the cap")
+                return None
+            chunks.append(chunk)
+        return b"".join(chunks)
 
 
 # ============================================================================
@@ -1325,7 +1357,7 @@ SITTING_LABELS = (
 # 19 th March 2027" - and letting those in stretched a four-day exam to five weeks.
 SITTING_EXCLUDE = (
     "result", "answer key", "admit card", "score card", "scorecard",
-    "counselling", "counseling", "rank", "cut off", "cut-off",
+    "counselling", "counseling", "rank", "cut off", "cut-off", "fee",
 )
 
 CLOSING_EXCLUDE = (
@@ -1411,6 +1443,50 @@ DATE_PAGE_HINTS = ("important_dates", "important-dates", "importantdates",
                    "key_dates", "key-dates", "/dates", "schedule", "notification")
 
 
+# Government portals publish their schedule as a public notice and link the PDF
+# from the home page. UGC-NET is the clearest case: nothing on ugcnet.nta.nic.in
+# carries a date, while the notice PDF states both the closing date and the exam
+# window in a table.
+def _notice_pdfs(markup: str, base_url: str) -> list[str]:
+    """PDF links, most recently filed first.
+
+    These portals name notices opaquely - 202610081928217016.pdf - but file them
+    under /uploads/YYYY/MM/, which is the only clue on offer as to which of three
+    attached PDFs is this year's.
+    """
+    found: list[tuple[tuple[int, int], str]] = []
+    for link in collect_links(markup, base_url):
+        if not link.lower().split("?")[0].endswith(".pdf"):
+            continue
+        stamp = re.search(r"/(20\d{2})/(\d{1,2})/", link)
+        filed = (int(stamp.group(1)), int(stamp.group(2))) if stamp else (0, 0)
+        found.append((filed, link))
+    found.sort(key=lambda pair: pair[0], reverse=True)
+    return [link for _, link in found]
+
+
+def _pdf_text(raw: bytes) -> str:
+    """Text of a PDF, laid out as printed.
+
+    "layout" rather than the default: a notice states its dates in a two-column
+    table, and the default mode returns every label and then every value, so no
+    date is anywhere near the row it belongs to.
+    """
+    try:
+        import pypdf
+    except ImportError:  # the tracker still runs, it just reads no PDFs
+        log.info("  pypdf is not installed; skipping notice PDFs")
+        return ""
+    try:
+        reader = pypdf.PdfReader(io.BytesIO(raw))
+        pages = reader.pages[:MAX_PDF_PAGES]
+        text = "\n".join(page.extract_text(extraction_mode="layout") or "" for page in pages)
+    except Exception as exc:  # a scanned or malformed notice must not end the run
+        log.info("  could not read a notice PDF: %s: %s", type(exc).__name__, exc)
+        return ""
+    return re.sub(r"\s+", " ", text)
+
+
 def _dates_page(markup: str, base_url: str) -> str:
     """A link on the same site that looks like it lists the schedule.
 
@@ -1460,13 +1536,29 @@ def source_exams(fetcher: Fetcher) -> list[Event]:
             if poster:
                 event.poster = Poster(url=poster)
 
+            pages = [markup]
             if not _read_exam_dates(event, strip_html(markup)):
                 # Nothing on the landing page. Try the schedule page it links to.
                 inner = _dates_page(markup, url)
                 if inner and inner.rstrip("/") != url.rstrip("/"):
                     deeper = fetcher.get(inner)
                     if deeper:
+                        pages.append(deeper)
                         _read_exam_dates(event, strip_html(deeper))
+
+            if not (event.deadline or event.start):
+                # Still nothing. The dates are in the notice PDF.
+                tried = 0
+                for page in pages:
+                    for pdf in _notice_pdfs(page, url):
+                        if tried >= MAX_PDF_TRIES:
+                            break
+                        tried += 1
+                        raw = fetcher.get_bytes(pdf)
+                        if raw and _read_exam_dates(event, _pdf_text(raw)):
+                            break
+                    if event.deadline or event.start:
+                        break
         events.append(event)
     return events
 

@@ -1,3 +1,4 @@
 requests>=2.31,<3
 openpyxl>=3.1,<4
 pillow>=10.0            # optional: lets the workbook embed poster thumbnails
+pypdf>=4,<7              # notice PDFs: layout mode keeps table rows together
