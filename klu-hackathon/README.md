@@ -304,11 +304,27 @@ where NTA and the other government bodies actually publish theirs. PDFs are read
 anywhere near the row it belongs to. Notices are tried newest first, judged by the `/YYYY/MM/`
 in their URL, since the filenames themselves say nothing.
 
-A date is only believed when it appears within 80 characters of a label saying what it is
-(`last date`, `exam date`, ...) **and** is still in the future - otherwise a 2019 circular ends
-up on a card as though it were a deadline. Words nearby can also disqualify it: a closing date
-for "rectification" is not a closing date to apply, and "Examination fee 28 October" is a
-payment deadline rather than a sitting.
+A date is only believed when it appears near a label saying what it is (`last date`,
+`exam date`, ...) and within a year either side of today - otherwise a 2019 circular ends up on
+a card as though it were a deadline. Words nearby can also disqualify it: a closing date for
+"rectification" is not a closing date to apply, and "Examination fee 28 October" is a payment
+deadline rather than a sitting.
+
+The two kinds of date are read differently, because they are written differently:
+
+| | Sitting | Last date to apply |
+|---|---|---|
+| Window after the label | 80 characters | 180 |
+| Which one is taken | earliest, plus a later end within 120 days | **latest** |
+| Dates already past | ignored | kept |
+
+The wide window is not a luxury: `Closing Date of REGULAR online registration (without late
+fee)` spends 62 characters before reaching its date, and GATE then prints three of them in a
+row. The latest is taken because a notice lists the regular close and then the late-fee close a
+few days later, and the last of them is what answers "can I still apply". Past ones are kept
+because a closed application is worth saying out loud - GATE's registration shut on 12 October
+and the exam is in February, so the card reads "Applications closed 12 Oct 2026" rather than
+falling silent.
 
 Even so, most exams will show nothing. Of the twenty, four carry a date - the rest render their
 schedules with no text fallback at all. An owner can fill both dates in by hand through

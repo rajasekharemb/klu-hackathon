@@ -129,6 +129,9 @@ function EventCard({
   // An exam is a standing annual thing, not a contest: it has a conducting body
   // rather than a venue, no prize, and a sitting date rather than a run of days.
   const isExam = event.kind === "exam";
+  // An exam whose applications have closed is still worth listing - the sitting
+  // is months away - so the date is shown as history rather than as a countdown.
+  const applyClosed = isExam && !!event.deadline && asDate(event.deadline)! < today();
   const hasPoster =
     event.poster_url && (event.poster_status === "ok" || event.poster_status === "thumbnail");
   const tags = (event.domains?.length ? event.domains : event.categories ?? []).slice(0, 3);
@@ -192,9 +195,15 @@ function EventCard({
           )}
           {(!isExam || event.deadline) && (
             <div className="row">
-              <span className="k">{isExam ? "Apply by" : "Register by"}</span>
-              <span className={`v ${event.deadline ? "deadline" : ""}`}>
-                {event.deadline ? pretty(event.deadline) : "TBA"}
+              <span className="k">
+                {!isExam ? "Register by" : applyClosed ? "Applications" : "Last date to apply"}
+              </span>
+              <span className={`v ${event.deadline && !applyClosed ? "deadline" : ""}`}>
+                {!event.deadline
+                  ? "TBA"
+                  : applyClosed
+                    ? `Closed ${pretty(event.deadline)}`
+                    : pretty(event.deadline)}
               </span>
             </div>
           )}

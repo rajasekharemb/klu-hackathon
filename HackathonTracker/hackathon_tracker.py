@@ -97,6 +97,12 @@ REQUEST_TIMEOUT = 25               # seconds
 MAX_PDF_BYTES = 10_000_000         # a public notice is a few hundred KB; this is a guard
 MAX_PDF_PAGES = 8                  # the schedule is always near the front
 MAX_PDF_TRIES = 3                  # how many attached notices to open before giving up
+# How far past a label to look for its date. A sitting needs a tight window - the
+# results date is usually the next thing on the page. A closing date needs a wide
+# one: "Closing Date of REGULAR online registration (without late fee)" spends 62
+# characters before it even reaches the date, and GATE then prints three of them.
+SITTING_WINDOW = 80
+CLOSING_WINDOW = 180
 POLITE_DELAY = 0.8                 # seconds between requests to the same host
 MAX_PER_SOURCE = 250               # default cap on events taken from one source
 # Unstop carries far more than the rest combined, so it gets explicit per-feed caps.
@@ -1367,7 +1373,11 @@ CLOSING_EXCLUDE = (
 
 
 def _labelled_dates(
-    text: str, labels: tuple[str, ...], exclude: tuple[str, ...] = ()
+    text: str,
+    labels: tuple[str, ...],
+    exclude: tuple[str, ...] = (),
+    allow_past: bool = False,
+    window: int = SITTING_WINDOW,
 ) -> list[date]:
     """Every future date written within 80 characters of one of these labels.
 
@@ -1379,6 +1389,10 @@ def _labelled_dates(
     """
     low = text.lower()
     today = date.today()
+    # A year either side. Far enough back to catch a closing date that has just
+    # passed, near enough that a 2019 circular or next year's cycle stays out.
+    earliest = today - timedelta(days=400) if allow_past else today
+    latest = today + timedelta(days=400)
     found: set[date] = set()
     day_pair = re.compile(
         rf"(\d{{1,2}})\s*(?:st|nd|rd|th)?\s*(?:,|and|&)\s*"
@@ -1388,20 +1402,20 @@ def _labelled_dates(
     for label in labels:
         at = low.find(label)
         while at >= 0:
-            window = text[at : at + 80]
-            if any(word in window.lower() for word in exclude):
+            window_text = text[at : at + window]
+            if any(word in window_text.lower() for word in exclude):
                 at = low.find(label, at + len(label))
                 continue
-            for pair in day_pair.finditer(window):
+            for pair in day_pair.finditer(window_text):
                 month, year = MONTH_NUMBERS[pair.group(3)[:3].lower()], int(pair.group(4))
                 for day in (pair.group(1), pair.group(2)):
                     parsed = _safe_date(year, month, int(day))
-                    if parsed and parsed >= today:
+                    if parsed and earliest <= parsed <= latest:
                         found.add(parsed)
             for pattern in DATE_PATTERNS:
-                for match in re.finditer(pattern, window, re.I):
+                for match in re.finditer(pattern, window_text, re.I):
                     parsed = parse_date(match.group(0))
-                    if parsed and parsed >= today:
+                    if parsed and earliest <= parsed <= latest:
                         found.add(parsed)
             at = low.find(label, at + len(label))
     return sorted(found)
@@ -1505,10 +1519,26 @@ def _dates_page(markup: str, base_url: str) -> str:
 
 
 def _read_exam_dates(event: Event, text: str) -> bool:
-    """Fill in whatever the text announces. True when something was found."""
-    event.deadline = _labelled_date(text, CLOSING_LABELS, CLOSING_EXCLUDE)
-    event.start, event.end = _labelled_span(text, SITTING_LABELS, SITTING_EXCLUDE)
-    return bool(event.deadline or event.start)
+    """Fill in whatever is still missing. True once both halves are known.
+
+    Per field, not all-or-nothing. GATE announces its sitting on the landing page
+    and its closing dates only on /important_dates, so stopping at the first page
+    that yielded anything left the deadline permanently blank.
+    """
+    # The LAST date an application is accepted, not the first. A notice lists
+    # several - the regular close, then the late-fee close a few days after - and
+    # the last of them is the one that answers "can I still apply". Past ones
+    # count: GATE's registration shut on 12 October and the exam is in February,
+    # so "closed on 12 Oct" is the useful thing to say, not silence.
+    if event.deadline is None:
+        closing = _labelled_dates(
+            text, CLOSING_LABELS, CLOSING_EXCLUDE, allow_past=True, window=CLOSING_WINDOW
+        )
+        if closing:
+            event.deadline = closing[-1]
+    if event.start is None:
+        event.start, event.end = _labelled_span(text, SITTING_LABELS, SITTING_EXCLUDE)
+    return bool(event.deadline and event.start)
 
 
 def source_exams(fetcher: Fetcher) -> list[Event]:
@@ -1537,27 +1567,29 @@ def source_exams(fetcher: Fetcher) -> list[Event]:
                 event.poster = Poster(url=poster)
 
             pages = [markup]
-            if not _read_exam_dates(event, strip_html(markup)):
-                # Nothing on the landing page. Try the schedule page it links to.
+            complete = _read_exam_dates(event, strip_html(markup))
+
+            if not complete:
+                # The schedule page the landing page links to.
                 inner = _dates_page(markup, url)
                 if inner and inner.rstrip("/") != url.rstrip("/"):
                     deeper = fetcher.get(inner)
                     if deeper:
                         pages.append(deeper)
-                        _read_exam_dates(event, strip_html(deeper))
+                        complete = _read_exam_dates(event, strip_html(deeper))
 
-            if not (event.deadline or event.start):
-                # Still nothing. The dates are in the notice PDF.
+            if not complete:
+                # Still short. The rest is in the notice PDF.
                 tried = 0
                 for page in pages:
                     for pdf in _notice_pdfs(page, url):
-                        if tried >= MAX_PDF_TRIES:
+                        if tried >= MAX_PDF_TRIES or complete:
                             break
                         tried += 1
                         raw = fetcher.get_bytes(pdf)
-                        if raw and _read_exam_dates(event, _pdf_text(raw)):
-                            break
-                    if event.deadline or event.start:
+                        if raw:
+                            complete = _read_exam_dates(event, _pdf_text(raw))
+                    if complete:
                         break
         events.append(event)
     return events
